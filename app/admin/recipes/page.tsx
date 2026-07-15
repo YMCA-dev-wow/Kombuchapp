@@ -8,6 +8,7 @@ export default function AdminRecipesPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  const [restockAmounts, setRestockAmounts] = useState<Record<string, number>>({});
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -52,9 +53,20 @@ export default function AdminRecipesPage() {
     loadRecipes();
   }
 
+  function getRestockAmount(recipe: Recipe): number {
+    return restockAmounts[recipe.id] ?? recipe.default_restock_quantity;
+  }
+
   async function handleRestock(recipe: Recipe) {
+    const amount = getRestockAmount(recipe);
+    if (!amount || amount <= 0) return;
+
     setBusyId(recipe.id);
-    await fetch(`/api/admin/recipes/${recipe.id}/restock`, { method: "POST" });
+    await fetch(`/api/admin/recipes/${recipe.id}/restock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity: amount }),
+    });
     await loadRecipes();
     setBusyId(null);
   }
@@ -147,7 +159,20 @@ export default function AdminRecipesPage() {
                     {recipe.active ? "visible" : "masquee"}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    value={getRestockAmount(recipe)}
+                    onChange={(e) =>
+                      setRestockAmounts((prev) => ({
+                        ...prev,
+                        [recipe.id]: Number(e.target.value),
+                      }))
+                    }
+                    aria-label={`Quantite a reapprovisionner pour ${recipe.name}`}
+                    className="w-16 rounded-lg border border-border bg-white px-2 py-1.5 text-xs"
+                  />
                   <button
                     onClick={() => handleRestock(recipe)}
                     disabled={busyId === recipe.id}
