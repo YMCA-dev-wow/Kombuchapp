@@ -1,0 +1,173 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { Recipe } from "@/lib/types";
+
+export default function AdminRecipesPage() {
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [quantity, setQuantity] = useState(0);
+  const [defaultRestockQuantity, setDefaultRestockQuantity] = useState(6);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadRecipes() {
+    setLoading(true);
+    const res = await fetch("/api/admin/recipes");
+    const data = await res.json();
+    if (res.ok) setRecipes(data.recipes);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    // Chargement initial des donnees au montage : cas d'usage explicitement
+    // recommande par React (fetch au mount), la regle react-hooks/set-state-in-effect
+    // vise d'autres anti-patterns (etat derive), pas celui-ci.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadRecipes();
+  }, []);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const res = await fetch("/api/admin/recipes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, description, quantity, defaultRestockQuantity }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Erreur lors de la creation.");
+      return;
+    }
+    setName("");
+    setDescription("");
+    setQuantity(0);
+    setDefaultRestockQuantity(6);
+    setShowForm(false);
+    loadRecipes();
+  }
+
+  async function handleRestock(recipe: Recipe) {
+    setBusyId(recipe.id);
+    await fetch(`/api/admin/recipes/${recipe.id}/restock`, { method: "POST" });
+    await loadRecipes();
+    setBusyId(null);
+  }
+
+  async function handleToggleActive(recipe: Recipe) {
+    setBusyId(recipe.id);
+    await fetch(`/api/admin/recipes/${recipe.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: !recipe.active }),
+    });
+    await loadRecipes();
+    setBusyId(null);
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Recettes</h1>
+        <button
+          onClick={() => setShowForm((v) => !v)}
+          className="rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground"
+        >
+          {showForm ? "Annuler" : "+ Nouvelle recette"}
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="space-y-3 rounded-xl border border-border bg-white/60 p-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Nom</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Description</label>
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="mb-1 block text-sm font-medium">Stock initial</label>
+              <input
+                type="number"
+                min={0}
+                value={quantity}
+                onChange={(e) => setQuantity(Number(e.target.value))}
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-sm font-medium">Reappro par defaut</label>
+              <input
+                type="number"
+                min={1}
+                value={defaultRestockQuantity}
+                onChange={(e) => setDefaultRestockQuantity(Number(e.target.value))}
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          {error && <p className="text-sm text-danger">{error}</p>}
+          <button className="w-full rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-foreground">
+            Creer la recette
+          </button>
+        </form>
+      )}
+
+      {loading ? (
+        <p className="text-sm text-muted">Chargement...</p>
+      ) : (
+        <div className="space-y-3">
+          {recipes.map((recipe) => (
+            <div
+              key={recipe.id}
+              className="rounded-xl border border-border bg-white/60 p-4"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{recipe.name}</p>
+                  <p className="text-xs text-muted">
+                    {recipe.quantity} en stock · reappro +{recipe.default_restock_quantity} ·{" "}
+                    {recipe.active ? "visible" : "masquee"}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleRestock(recipe)}
+                    disabled={busyId === recipe.id}
+                    className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
+                  >
+                    Remettre en stock
+                  </button>
+                  <button
+                    onClick={() => handleToggleActive(recipe)}
+                    disabled={busyId === recipe.id}
+                    className="rounded-full border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+                  >
+                    {recipe.active ? "Masquer" : "Activer"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
