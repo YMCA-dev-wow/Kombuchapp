@@ -19,6 +19,7 @@ export function AdminNav() {
     { href: "/admin", label: "Tableau de bord" },
     { href: "/admin/recipes", label: "Recettes" },
     { href: "/admin/commandes", label: "Commandes" },
+    { href: "/admin/suivi", label: "Suivi" },
   ];
 
   return (

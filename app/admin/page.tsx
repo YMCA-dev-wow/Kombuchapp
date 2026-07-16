@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { NotifyStockButton } from "@/components/admin/NotifyStockButton";
 
 // Cette page depend de donnees live (stock, commandes en attente) et est
 // protegee par le proxy (session admin) : elle ne doit jamais etre mise
@@ -54,6 +55,8 @@ export default async function AdminDashboardPage() {
           </ul>
         </div>
       )}
+
+      <NotifyStockButton />
     </div>
   );
 }

@@ -32,3 +32,9 @@ export type CustomOrder = {
   admin_note: string;
   created_at: string;
 };
+
+export type Subscriber = {
+  id: string;
+  email: string;
+  created_at: string;
+};

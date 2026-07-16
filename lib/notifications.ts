@@ -122,3 +122,59 @@ const channels: NotificationChannel[] = [emailChannel /*, pushChannel */];
 export async function notify(event: NotificationEvent): Promise<void> {
   await Promise.all(channels.map((c) => c.send(event)));
 }
+
+// -----------------------------------------------------------------------
+// DIFFUSION "nouveau stock disponible" : envoyee manuellement par le
+// producteur a toute la liste d'abonnes (voir /api/subscribe et la table
+// `subscribers`). Simple invitation a aller voir le site, sans detailler
+// le stock dans le contenu du message.
+//
+// On utilise l'API "batch" de Resend (jusqu'a 100 emails par appel), ce
+// qui correspond justement a la limite du plan gratuit (100 emails/jour) :
+// une diffusion complete tient dans un seul quota journalier tant que la
+// liste d'abonnes ne depasse pas 100 personnes.
+// -----------------------------------------------------------------------
+const BATCH_SIZE = 100;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+export async function sendStockAvailableBroadcast(
+  emails: string[],
+  siteUrl: string
+): Promise<{ sent: number }> {
+  if (!resend) {
+    console.log("[notifications:email] RESEND_API_KEY absent, diffusion ignoree.");
+    return { sent: 0 };
+  }
+  if (emails.length === 0) {
+    return { sent: 0 };
+  }
+
+  const html = `<p>Du nouveau kombucha vient d'arriver en stock !</p>
+                <p><a href="${siteUrl}">Va jeter un oeil a la boutique</a> avant qu'il n'y en ait plus.</p>`;
+
+  let sent = 0;
+  for (const batch of chunk(emails, BATCH_SIZE)) {
+    try {
+      await resend.batch.send(
+        batch.map((email) => ({
+          from: fromEmail,
+          to: [email],
+          subject: "Nouveau stock de kombucha disponible !",
+          html,
+        }))
+      );
+      sent += batch.length;
+    } catch (err) {
+      console.error("[notifications:email] echec de la diffusion", err);
+    }
+  }
+
+  return { sent };
+}

@@ -45,12 +45,11 @@ Cela télécharge tout ce dont le site a besoin pour fonctionner (ça prend 1-2 
 2. Clique **New project**. Choisis un nom (ex: `kombucha`), un mot de passe de base de données (garde-le de côté, tu n'en auras normalement plus besoin), et une région proche de toi (ex: Paris/Frankfurt).
 3. Une fois le projet créé, va dans **SQL Editor** (menu de gauche) puis **New query**.
 4. Ouvre le fichier `supabase/migrations/0001_init.sql` de ton projet (dans VS Code), copie tout son contenu, colle-le dans l'éditeur SQL de Supabase, et clique **Run**. Cela crée toutes les tables (recettes, commandes) et les règles de sécurité.
-5. Clique sur l'icône **engrenage (Settings)** en bas du menu de gauche, puis **API Keys**. Tu vas y trouver les valeurs à copier :
-   - En haut de la page : **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
-   - Juste en dessous, deux onglets s'affichent : **Legacy API Keys** et **API Keys**. Reste sur l'onglet **Legacy API Keys** (les noms correspondent exactement à ce qu'attend le projet) :
-     - **anon public** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-     - **service_role** (clique "Reveal" pour l'afficher) → `SUPABASE_SERVICE_ROLE_KEY` — **garde-la secrète, ne la partage jamais, ne la mets jamais dans du code envoyé au navigateur.**
-   - Supabase propose aussi un nouveau format de clés (**Publishable key** / **Secret key**, préfixées `sb_publishable_...` / `sb_secret_...`) dans l'onglet **API Keys**. Elles fonctionnent aussi très bien à la place des clés legacy, mais utilise plutôt les clés **Legacy** ci-dessus pour rester cohérent avec les noms de variables du projet.
+   Fais de même avec `supabase/migrations/0002_subscribers.sql` (dans une nouvelle requête SQL) : cette table sert à la liste des amis inscrits aux alertes "nouveau stock disponible". À chaque futur ajout de fonctionnalité nécessitant la base de données, un nouveau fichier `000X_....sql` sera ajouté à exécuter de la même façon — jamais besoin de retoucher les fichiers déjà exécutés.
+5. Va dans **Project Settings > API**. Tu vas y trouver trois valeurs à copier pour l'étape 5 :
+   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
+   - **anon public** key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - **service_role** key (clique "Reveal") → `SUPABASE_SERVICE_ROLE_KEY` — **garde-la secrète, ne la partage jamais, ne la mets jamais dans du code envoyé au navigateur.**
 
 ---
 
@@ -72,7 +71,7 @@ Cela télécharge tout ce dont le site a besoin pour fonctionner (ça prend 1-2 
 node scripts/hash-password.mjs "TonMotDePasseSecret"
 ```
 
-Copie la ligne `ADMIN_PASSWORD_HASH=...` affichée dans `.env.local`.
+Copie la ligne `ADMIN_PASSWORD_HASH=...` affichée telle quelle dans `.env.local` (c'est une valeur encodée en base64, sans caractère `$` — volontaire, pour éviter un bug d'interprétation de Next.js sur les fichiers `.env*`, voir dépannage ci-dessous).
 
 4. Génère un `SESSION_SECRET` (une chaîne aléatoire d'au moins 32 caractères). Tu peux utiliser cette commande dans le terminal pour en générer une :
 
@@ -130,7 +129,15 @@ Pour toute future modification du code : modifie les fichiers dans VS Code, puis
 
 - **Recettes** : crée tes parfums une fois (nom, description, quantité de réapprovisionnement par défaut). Ensuite, un clic sur **"Remettre en stock"** ajoute cette quantité au stock existant — plus besoin de ressaisir les infos à chaque fournée.
 - **Commandes** : la section **Commandes** liste les demandes "sur commande" en attente ; tu peux les **Valider** ou **Refuser** en un clic, un email est automatiquement envoyé à la personne.
+- **Suivi** : répartition des ventes par recette (camembert) et évolution des volumes par semaine et par mois (courbes par recette + total). Basé sur les commandes de stock confirmées.
+- **Nouveau stock disponible** : sur le tableau de bord, un bouton permet de prévenir tous les amis inscrits (voir ci-dessous) qu'un nouveau stock est disponible — un simple email d'invitation à consulter la boutique, sans détail du contenu.
 - Le **Tableau de bord** te donne un coup d'œil rapide (nombre de recettes actives, demandes en attente, alertes de stock bas).
+
+### S'inscrire aux alertes de nouveau stock
+
+Sur la boutique, tes amis peuvent laisser leur email dans un petit encart "Être prévenu(e) des nouveaux stocks". C'est cette liste qui reçoit l'invitation quand tu cliques sur "Prévenir du nouveau stock" dans le tableau de bord.
+
+⚠️ Le plan gratuit de Resend limite l'envoi à **100 emails par jour**. Une diffusion complète à tous tes amis inscrits consomme donc une bonne partie (voire la totalité) de ton quota du jour — évite de la déclencher plusieurs fois le même jour, et évite de la combiner avec beaucoup de commandes individuelles la même journée.
 
 ---
 
@@ -144,5 +151,7 @@ Le code est volontairement organisé pour que ce soit facile à ajouter plus tar
 
 - **"Variables NEXT_PUBLIC_SUPABASE_URL... manquantes"** → vérifie que `.env.local` existe bien à la racine du projet (pas juste `.env.example`) et que le serveur (`npm run dev`) a bien été relancé après modification du fichier.
 - **"Mot de passe incorrect" en boucle** → régénère le hash avec `node scripts/hash-password.mjs "..."` et vérifie qu'il n'y a pas d'espace en trop dans `.env.local`.
+- **"ADMIN_PASSWORD_HASH manquant" alors qu'il est bien rempli** → si la valeur contient des `$` (ancien format), Next.js les interprète comme des références à d'autres variables d'environnement et casse la valeur silencieusement. Régénère le hash avec la dernière version de `scripts/hash-password.mjs` (le résultat ne contient plus de `$`) et remplace la ligne dans `.env.local`, puis redémarre `npm run dev`.
+- **Le fichier `.env.local` n'est pas pris en compte** → vérifie qu'il ne s'appelle pas en réalité `.env.local.txt` (Windows masque parfois l'extension). Dans l'explorateur de fichiers, active l'affichage des extensions (onglet Affichage > cocher "Extensions de noms de fichiers"), ou tape `Get-ChildItem -Force` dans un terminal PowerShell à la racine du projet pour voir le nom exact.
 - **Le stock ne se met pas à jour en temps réel** → vérifie dans Supabase, section **Database > Replication**, que la table `recipes` est bien cochée (normalement fait automatiquement par la migration SQL).
 - **Erreur au moment du `git push`** → vérifie que tu as bien créé le dépôt GitHub et copié la bonne URL dans `git remote add origin ...`.
