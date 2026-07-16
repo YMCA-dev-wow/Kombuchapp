@@ -25,6 +25,10 @@ export default function RootLayout({
         <Header />
         <main className="mx-auto w-full max-w-md flex-1 px-4 py-6">{children}</main>
         <footer className="mx-auto w-full max-w-md px-4 py-6 text-center text-xs text-muted">
+          <a href="/decharge-responsabilite.pdf" download className="underline">
+            Decharge de responsabilite (PDF)
+          </a>
+          <span className="px-2">&middot;</span>
           <Link href="/admin/login">Espace producteur</Link>
         </footer>
       </body>
