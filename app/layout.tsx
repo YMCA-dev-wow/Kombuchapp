@@ -4,7 +4,7 @@ import { Header } from "@/components/Header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kombucha maison",
+  title: "YMCA Kombucha",
   description: "Commande ton kombucha maison directement en ligne.",
 };
 
