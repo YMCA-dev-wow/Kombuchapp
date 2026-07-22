@@ -12,7 +12,8 @@ export default function HomePage() {
           <a href="/sur-commande" className="text-accent underline">
             Sur commande
           </a>
-          .
+          . Les bouteilles commandees ici doivent etre recuperees sous 7 jours : au-dela, passe plutot par
+          &quot;Sur commande&quot;, ou recommande plus tard directement depuis la boutique (sous reserve de stock disponible).
         </p>
         <StockList />
       </div>

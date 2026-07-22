@@ -11,12 +11,15 @@ export type Recipe = {
 
 export type Order = {
   id: string;
-  recipe_id: string;
+  recipe_id: string | null;
   recipe_name_snapshot: string;
   quantity: number;
   customer_name: string;
   customer_email: string | null;
   status: "confirmee" | "annulee";
+  order_type: "vendu" | "donne";
+  unit_amount: number | null;
+  created_by: "site" | "admin";
   created_at: string;
 };
 

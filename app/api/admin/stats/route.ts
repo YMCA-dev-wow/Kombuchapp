@@ -19,7 +19,13 @@ function getMonthLabel(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-type Row = { recipe_name_snapshot: string; quantity: number; created_at: string };
+type Row = {
+  recipe_name_snapshot: string;
+  quantity: number;
+  created_at: string;
+  order_type: "vendu" | "donne";
+  unit_amount: number | null;
+};
 
 function aggregateByPeriod(rows: Row[], labelFn: (d: Date) => string) {
   const periods = new Map<string, Map<string, number>>();
@@ -53,25 +59,39 @@ function aggregateByPeriod(rows: Row[], labelFn: (d: Date) => string) {
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const { data, error } = await supabaseAdmin
-    .from("orders")
-    .select("recipe_name_snapshot, quantity, created_at")
-    .eq("status", "confirmee")
-    .order("created_at", { ascending: true });
+  const [{ data, error }, { data: recipesData, error: recipesError }] = await Promise.all([
+    supabaseAdmin
+      .from("orders")
+      .select("recipe_name_snapshot, quantity, created_at, order_type, unit_amount")
+      .eq("status", "confirmee")
+      .order("created_at", { ascending: true }),
+    supabaseAdmin.from("recipes").select("quantity"),
+  ]);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (recipesError) {
+    return NextResponse.json({ error: recipesError.message }, { status: 500 });
   }
 
   const rows = (data ?? []) as Row[];
 
   const totalsMap = new Map<string, number>();
+  let totalSoldOrGiven = 0;
+  let totalRevenue = 0;
   for (const row of rows) {
     totalsMap.set(row.recipe_name_snapshot, (totalsMap.get(row.recipe_name_snapshot) ?? 0) + row.quantity);
+    totalSoldOrGiven += row.quantity;
+    if (row.order_type === "vendu" && row.unit_amount) {
+      totalRevenue += Number(row.unit_amount);
+    }
   }
   const totalsByRecipe = Array.from(totalsMap.entries())
     .map(([name, total]) => ({ name, total }))
     .sort((a, b) => b.total - a.total);
+
+  const currentStock = (recipesData ?? []).reduce((sum, r) => sum + (r.quantity ?? 0), 0);
 
   const weekly = aggregateByPeriod(rows, getISOWeekLabel);
   const monthly = aggregateByPeriod(rows, getMonthLabel);
@@ -81,5 +101,9 @@ export async function GET() {
     weekly: weekly.series,
     monthly: monthly.series,
     recipeNames: Array.from(new Set([...weekly.recipeNames, ...monthly.recipeNames])),
+    totalProduced: currentStock + totalSoldOrGiven,
+    currentStock,
+    totalSoldOrGiven,
+    totalRevenue,
   });
 }

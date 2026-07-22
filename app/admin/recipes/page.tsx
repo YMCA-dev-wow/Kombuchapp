@@ -16,6 +16,10 @@ export default function AdminRecipesPage() {
   const [defaultRestockQuantity, setDefaultRestockQuantity] = useState(6);
   const [error, setError] = useState<string | null>(null);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+
   async function loadRecipes() {
     setLoading(true);
     const res = await fetch("/api/admin/recipes");
@@ -78,6 +82,24 @@ export default function AdminRecipesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !recipe.active }),
     });
+    await loadRecipes();
+    setBusyId(null);
+  }
+
+  function startEditing(recipe: Recipe) {
+    setEditingId(recipe.id);
+    setEditName(recipe.name);
+    setEditDescription(recipe.description);
+  }
+
+  async function handleSaveEdit(recipe: Recipe) {
+    setBusyId(recipe.id);
+    await fetch(`/api/admin/recipes/${recipe.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: editName, description: editDescription }),
+    });
+    setEditingId(null);
     await loadRecipes();
     setBusyId(null);
   }
@@ -151,15 +173,52 @@ export default function AdminRecipesPage() {
               key={recipe.id}
               className="rounded-xl border border-border bg-white/60 p-4"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{recipe.name}</p>
-                  <p className="text-xs text-muted">
-                    {recipe.quantity} en stock · reappro +{recipe.default_restock_quantity} ·{" "}
-                    {recipe.active ? "visible" : "masquee"}
-                  </p>
+              {editingId === recipe.id ? (
+                <div className="space-y-2">
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+                  />
+                  <input
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="Description"
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSaveEdit(recipe)}
+                      disabled={busyId === recipe.id}
+                      className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
+                    >
+                      Enregistrer
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="rounded-full border border-border px-3 py-1.5 text-xs"
+                    >
+                      Annuler
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
+              ) : (
+                <div className="flex items-center justify-between">
+                  <button onClick={() => startEditing(recipe)} className="text-left">
+                    <p className="font-medium underline decoration-dotted">{recipe.name}</p>
+                    {recipe.description && (
+                      <p className="text-xs text-muted">{recipe.description}</p>
+                    )}
+                    <p className="mt-0.5 text-xs text-muted">
+                      {recipe.quantity} en stock · reappro +{recipe.default_restock_quantity} ·{" "}
+                      {recipe.active ? "visible" : "masquee"}
+                    </p>
+                  </button>
+                </div>
+              )}
+
+              {editingId !== recipe.id && (
+                <div className="mt-3 flex items-center gap-2">
                   <input
                     type="number"
                     min={1}
@@ -188,7 +247,7 @@ export default function AdminRecipesPage() {
                     {recipe.active ? "Masquer" : "Activer"}
                   </button>
                 </div>
-              </div>
+              )}
             </div>
           ))}
         </div>

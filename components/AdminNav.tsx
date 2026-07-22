@@ -18,13 +18,14 @@ export function AdminNav() {
   const links = [
     { href: "/admin", label: "Tableau de bord" },
     { href: "/admin/recipes", label: "Recettes" },
+    { href: "/admin/ventes", label: "Ventes" },
     { href: "/admin/commandes", label: "Commandes" },
     { href: "/admin/suivi", label: "Suivi" },
   ];
 
   return (
     <div className="mb-6 flex items-center justify-between border-b border-border pb-3">
-      <nav className="flex gap-4 text-sm">
+      <nav className="flex flex-wrap gap-4 text-sm">
         {links.map((link) => (
           <Link
             key={link.href}

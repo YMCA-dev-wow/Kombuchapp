@@ -9,6 +9,13 @@ import { Resend } from "resend";
 // dans le tableau `channels` ci-dessous pour envoyer aussi des
 // notifications Web Push (PWA), SANS toucher au reste du code (routes
 // API, pages...) qui appelle uniquement `notify(event)`.
+//
+// IMPORTANT : chaque destinataire (producteur / client) recoit un email
+// envoye dans un appel SEPARE a Resend. Si on les groupe dans un seul
+// envoi (un seul "to" avec plusieurs adresses), un probleme sur UNE
+// adresse (ex: domaine d'envoi non verifie, adresse invalide) fait
+// echouer l'envoi en entier -- y compris pour l'autre destinataire.
+// En les separant, chaque email reussit ou echoue independamment.
 // =======================================================================
 
 export type NotificationEvent =
@@ -43,46 +50,80 @@ export interface NotificationChannel {
 // Canal EMAIL (Resend) - actif par defaut.
 // Necessite RESEND_API_KEY + RESEND_FROM_EMAIL + ADMIN_NOTIFICATION_EMAIL
 // dans .env.local. Si absents, le canal se contente d'un log (pas de crash).
+//
+// ATTENTION : avec l'adresse d'essai onboarding@resend.dev (domaine non
+// verifie dans Resend), l'envoi vers de vrais destinataires n'est PAS
+// fiable. Verifie ton propre nom de domaine dans Resend (Domains > Add
+// domain) et utilise une adresse comme contact@tondomaine.fr dans
+// RESEND_FROM_EMAIL des que possible -- voir GUIDE_DEMARRAGE.md.
 // -----------------------------------------------------------------------
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 const fromEmail = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
 const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
 
-function renderEmail(event: NotificationEvent): { subject: string; html: string; to: string[] } {
+type Message = { to: string; subject: string; html: string };
+
+function buildMessages(event: NotificationEvent): Message[] {
+  const messages: Message[] = [];
+
   switch (event.type) {
     case "nouvelle_commande_stock": {
-      const to = [adminEmail, event.customerEmail].filter(Boolean) as string[];
-      return {
-        to,
-        subject: `Nouvelle commande : ${event.recipeName} x${event.quantity}`,
-        html: `<p>Commande confirmee pour <strong>${event.customerName}</strong></p>
-               <p>${event.quantity} x ${event.recipeName}</p>`,
-      };
+      if (adminEmail) {
+        messages.push({
+          to: adminEmail,
+          subject: `Nouvelle commande : ${event.recipeName} x${event.quantity}`,
+          html: `<p>Commande confirmee pour <strong>${event.customerName}</strong></p>
+                 <p>${event.quantity} x ${event.recipeName}</p>`,
+        });
+      }
+      if (event.customerEmail) {
+        messages.push({
+          to: event.customerEmail,
+          subject: `Commande confirmee : ${event.recipeName} x${event.quantity}`,
+          html: `<p>Merci ${event.customerName} ! Ta commande de ${event.quantity} x ${event.recipeName} est confirmee.</p>
+                 <p>Pense a venir la recuperer sous 7 jours.</p>`,
+        });
+      }
+      break;
     }
     case "nouvelle_demande_sur_commande": {
-      const to = [adminEmail].filter(Boolean) as string[];
-      return {
-        to,
-        subject: `Nouvelle demande "sur commande" de ${event.customerName}`,
-        html: `<p><strong>${event.customerName}</strong> demande ${event.quantity} x ${event.recipeName}</p>
-               ${event.desiredDate ? `<p>Date souhaitee : ${event.desiredDate}</p>` : ""}`,
-      };
+      if (adminEmail) {
+        messages.push({
+          to: adminEmail,
+          subject: `Nouvelle demande "sur commande" de ${event.customerName}`,
+          html: `<p><strong>${event.customerName}</strong> demande ${event.quantity} x ${event.recipeName}</p>
+                 ${event.desiredDate ? `<p>Date souhaitee : ${event.desiredDate}</p>` : ""}`,
+        });
+      }
+      if (event.customerEmail) {
+        messages.push({
+          to: event.customerEmail,
+          subject: `Ta demande "${event.recipeName}" a bien ete recue`,
+          html: `<p>Merci ${event.customerName} ! Ta demande de ${event.quantity} x ${event.recipeName} a bien ete recue.</p>
+                 <p>Elle est en attente de validation manuelle, tu recevras un email des que c'est fait.</p>`,
+        });
+      }
+      break;
     }
     case "commande_personnalisee_validee":
     case "commande_personnalisee_refusee": {
-      const to = [event.customerEmail].filter(Boolean) as string[];
-      const validee = event.type === "commande_personnalisee_validee";
-      return {
-        to,
-        subject: validee
-          ? `Ta commande "${event.recipeName}" est validee !`
-          : `A propos de ta demande "${event.recipeName}"`,
-        html: `<p>${validee ? "Bonne nouvelle, ta demande a ete validee." : "Ta demande n'a malheureusement pas pu etre validee."}</p>
-               ${event.adminNote ? `<p>${event.adminNote}</p>` : ""}`,
-      };
+      if (event.customerEmail) {
+        const validee = event.type === "commande_personnalisee_validee";
+        messages.push({
+          to: event.customerEmail,
+          subject: validee
+            ? `Ta commande "${event.recipeName}" est validee !`
+            : `A propos de ta demande "${event.recipeName}"`,
+          html: `<p>${validee ? "Bonne nouvelle, ta demande a ete validee." : "Ta demande n'a malheureusement pas pu etre validee."}</p>
+                 ${event.adminNote ? `<p>${event.adminNote}</p>` : ""}`,
+        });
+      }
+      break;
     }
   }
+
+  return messages;
 }
 
 const emailChannel: NotificationChannel = {
@@ -92,14 +133,30 @@ const emailChannel: NotificationChannel = {
       console.log("[notifications:email] RESEND_API_KEY absent, notification ignoree:", event);
       return;
     }
-    const { to, subject, html } = renderEmail(event);
-    if (to.length === 0) return;
-    try {
-      await resend.emails.send({ from: fromEmail, to, subject, html });
-    } catch (err) {
-      // On ne bloque jamais une commande a cause d'un email qui echoue.
-      console.error("[notifications:email] echec d'envoi", err);
-    }
+    const messages = buildMessages(event);
+    if (messages.length === 0) return;
+
+    await Promise.all(
+      messages.map(async (message) => {
+        try {
+          const { error } = await resend.emails.send({
+            from: fromEmail,
+            to: [message.to],
+            subject: message.subject,
+            html: message.html,
+          });
+          if (error) {
+            // On ne bloque jamais une commande a cause d'un email qui echoue,
+            // mais on log l'erreur precise renvoyee par Resend (visible dans
+            // les logs Vercel) pour pouvoir diagnostiquer (ex: domaine non
+            // verifie, adresse invalide...).
+            console.error(`[notifications:email] echec d'envoi a ${message.to}:`, error);
+          }
+        } catch (err) {
+          console.error(`[notifications:email] echec d'envoi a ${message.to}:`, err);
+        }
+      })
+    );
   },
 };
 
@@ -162,7 +219,7 @@ export async function sendStockAvailableBroadcast(
   let sent = 0;
   for (const batch of chunk(emails, BATCH_SIZE)) {
     try {
-      await resend.batch.send(
+      const { error } = await resend.batch.send(
         batch.map((email) => ({
           from: fromEmail,
           to: [email],
@@ -170,7 +227,11 @@ export async function sendStockAvailableBroadcast(
           html,
         }))
       );
-      sent += batch.length;
+      if (error) {
+        console.error("[notifications:email] echec de la diffusion", error);
+      } else {
+        sent += batch.length;
+      }
     } catch (err) {
       console.error("[notifications:email] echec de la diffusion", err);
     }

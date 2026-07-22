@@ -45,7 +45,7 @@ Cela télécharge tout ce dont le site a besoin pour fonctionner (ça prend 1-2 
 2. Clique **New project**. Choisis un nom (ex: `kombucha`), un mot de passe de base de données (garde-le de côté, tu n'en auras normalement plus besoin), et une région proche de toi (ex: Paris/Frankfurt).
 3. Une fois le projet créé, va dans **SQL Editor** (menu de gauche) puis **New query**.
 4. Ouvre le fichier `supabase/migrations/0001_init.sql` de ton projet (dans VS Code), copie tout son contenu, colle-le dans l'éditeur SQL de Supabase, et clique **Run**. Cela crée toutes les tables (recettes, commandes) et les règles de sécurité.
-   Fais de même avec `supabase/migrations/0002_subscribers.sql` (dans une nouvelle requête SQL) : cette table sert à la liste des amis inscrits aux alertes "nouveau stock disponible". À chaque futur ajout de fonctionnalité nécessitant la base de données, un nouveau fichier `000X_....sql` sera ajouté à exécuter de la même façon — jamais besoin de retoucher les fichiers déjà exécutés.
+   Fais de même avec `supabase/migrations/0002_subscribers.sql` puis `supabase/migrations/0003_orders_ledger.sql` (chacun dans une nouvelle requête SQL, dans l'ordre) : le premier ajoute la liste des amis inscrits aux alertes "nouveau stock disponible", le second ajoute le suivi vendu/offert + prix sur les commandes. À chaque futur ajout de fonctionnalité nécessitant la base de données, un nouveau fichier `000X_....sql` sera ajouté à exécuter de la même façon, toujours dans l'ordre des numéros — jamais besoin de retoucher les fichiers déjà exécutés.
 5. Va dans **Project Settings > API**. Tu vas y trouver trois valeurs à copier pour l'étape 5 :
    - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
    - **anon public** key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -57,7 +57,11 @@ Cela télécharge tout ce dont le site a besoin pour fonctionner (ça prend 1-2 
 
 1. Va sur https://resend.com et crée un compte gratuit.
 2. Dans **API Keys**, crée une clé et copie-la → ce sera `RESEND_API_KEY`.
-3. Pour commencer sans configuration de domaine, tu peux envoyer depuis `onboarding@resend.dev` (déjà prêt à l'emploi). Plus tard, si tu veux envoyer depuis ton propre nom de domaine, Resend te guide pour vérifier un domaine.
+3. ⚠️ **Important, à ne pas sauter** : l'adresse `onboarding@resend.dev` ne fonctionne que pour des tests très limités (Resend l'indique explicitement : "for testing only"). Pour recevoir de vraies confirmations de commande (toi et tes amis), il faut **vérifier un nom de domaine que tu possèdes** :
+   - Si tu n'as pas de domaine, achètes-en un pas cher (~10-15€/an) chez un registrar comme Cloudflare Registrar ou directement depuis Vercel (onglet **Domains** de ton projet Vercel).
+   - Dans Resend, va dans **Domains > Add Domain**, saisis ton domaine, puis ajoute les enregistrements DNS (DKIM/SPF) qu'on te donne chez ton registrar (Vercel peut aussi les ajouter automatiquement si le domaine est géré chez lui). La vérification prend quelques minutes à quelques heures.
+   - Une fois le domaine vérifié, mets une adresse dessus dans `RESEND_FROM_EMAIL`, par exemple `kombucha@tondomaine.fr` (n'importe quelle adresse sur ce domaine fonctionne, pas besoin de vraie boîte mail associée pour l'envoi).
+   - Tant que le domaine n'est pas vérifié, les emails de confirmation (commande, validation...) risquent de ne jamais arriver, ni à toi ni à tes amis — c'est la cause la plus fréquente de "je ne reçois pas les emails".
 
 ---
 
@@ -127,9 +131,10 @@ Pour toute future modification du code : modifie les fichiers dans VS Code, puis
 
 ## 8. Utilisation au quotidien (espace producteur)
 
-- **Recettes** : crée tes parfums une fois (nom, description, quantité de réapprovisionnement par défaut). Ensuite, un clic sur **"Remettre en stock"** ajoute cette quantité au stock existant — plus besoin de ressaisir les infos à chaque fournée.
-- **Commandes** : la section **Commandes** liste les demandes "sur commande" en attente ; tu peux les **Valider** ou **Refuser** en un clic, un email est automatiquement envoyé à la personne.
-- **Suivi** : répartition des ventes par recette (camembert) et évolution des volumes par semaine et par mois (courbes par recette + total). Basé sur les commandes de stock confirmées.
+- **Recettes** : crée tes parfums une fois (nom, description, quantité de réapprovisionnement par défaut). Un clic sur **"Remettre en stock"** ajoute la quantité au stock existant. Clique sur le nom d'une recette pour corriger son titre ou sa description à tout moment.
+- **Ventes** : le registre complet de toutes les commandes (celles passées sur le site + celles que tu ajoutes toi-même pour des ventes hors site, remises en main propre par exemple). Pour chaque ligne : recette, quantité, client, date, "vendu" ou "offert", et montant encaissé si vendu. Modifiable et supprimable à tout moment (utile pour nettoyer des essais/tests sans polluer le Suivi).
+- **Commandes** : la section **Commandes** liste les demandes "sur commande" en attente ; tu peux les **Valider** ou **Refuser** en un clic, un email est automatiquement envoyé à la personne (et un email de confirmation de réception part aussi dès le dépôt de la demande).
+- **Suivi** : nombre total de bouteilles produites (stock actuel + tout ce qui est déjà parti) et somme totale encaissée en haut de page, puis répartition des ventes par recette (camembert) et évolution des volumes par semaine et par mois (courbes par recette + total).
 - **Nouveau stock disponible** : sur le tableau de bord, un bouton permet de prévenir tous les amis inscrits (voir ci-dessous) qu'un nouveau stock est disponible — un simple email d'invitation à consulter la boutique, sans détail du contenu.
 - Le **Tableau de bord** te donne un coup d'œil rapide (nombre de recettes actives, demandes en attente, alertes de stock bas).
 
@@ -155,3 +160,5 @@ Le code est volontairement organisé pour que ce soit facile à ajouter plus tar
 - **Le fichier `.env.local` n'est pas pris en compte** → vérifie qu'il ne s'appelle pas en réalité `.env.local.txt` (Windows masque parfois l'extension). Dans l'explorateur de fichiers, active l'affichage des extensions (onglet Affichage > cocher "Extensions de noms de fichiers"), ou tape `Get-ChildItem -Force` dans un terminal PowerShell à la racine du projet pour voir le nom exact.
 - **Le stock ne se met pas à jour en temps réel** → vérifie dans Supabase, section **Database > Replication**, que la table `recipes` est bien cochée (normalement fait automatiquement par la migration SQL).
 - **Erreur au moment du `git push`** → vérifie que tu as bien créé le dépôt GitHub et copié la bonne URL dans `git remote add origin ...`.
+- **Aucun email de confirmation reçu (ni toi, ni tes amis)** → cause quasi certaine : domaine d'envoi non vérifié dans Resend (voir étape 4). Vérifie aussi dans le dashboard Resend (resend.com/emails) si les emails apparaissent en erreur, et dans les logs Vercel (onglet **Logs** de ton projet) si tu vois des lignes `[notifications:email] echec d'envoi`.
+- **`npm run build` plante avec "Bus error"** → ne lance jamais `npm run build` pendant que `npm run dev` tourne déjà sur le même dossier (conflit de cache `.next`). Arrête d'abord `npm run dev` (Ctrl+C).
