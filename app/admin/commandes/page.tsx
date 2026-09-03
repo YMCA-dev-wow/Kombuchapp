@@ -5,8 +5,8 @@ import type { CustomOrder } from "@/lib/types";
 
 const statusLabel: Record<CustomOrder["status"], string> = {
   en_attente: "En attente",
-  validee: "Validee",
-  refusee: "Refusee",
+  validee: "Validée",
+  refusee: "Refusée",
 };
 
 export default function AdminCommandesPage() {
@@ -23,9 +23,9 @@ export default function AdminCommandesPage() {
   }
 
   useEffect(() => {
-    // Chargement initial des donnees au montage : cas d'usage explicitement
-    // recommande par React (fetch au mount), la regle react-hooks/set-state-in-effect
-    // vise d'autres anti-patterns (etat derive), pas celui-ci.
+    // Chargement initial des données au montage : cas d'usage explicitement
+    // recommandé par React (fetch au mount), la règle react-hooks/set-state-in-effect
+    // vise d'autres anti-patterns (état dérivé), pas celui-ci.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadOrders();
   }, []);
@@ -43,7 +43,7 @@ export default function AdminCommandesPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Commandes personnalisees</h1>
+      <h1 className="text-xl font-semibold">Commandes personnalisées</h1>
 
       {loading ? (
         <p className="text-sm text-muted">Chargement...</p>
@@ -63,7 +63,7 @@ export default function AdminCommandesPage() {
                     {order.customer_email ? ` · ${order.customer_email}` : ""}
                   </p>
                   {order.desired_date && (
-                    <p className="text-xs text-muted">Souhaitee pour le {order.desired_date}</p>
+                    <p className="text-xs text-muted">Souhaitée pour le {order.desired_date}</p>
                   )}
                   {order.details && <p className="mt-1 text-sm">{order.details}</p>}
                 </div>

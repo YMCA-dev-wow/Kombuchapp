@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { notify } from "@/lib/notifications";
 
-// Commande d'une bouteille deja en stock. Passe par la fonction Postgres
-// `create_stock_order` (voir supabase/migrations/0001_init.sql) qui gere
-// la decrementation ATOMIQUE du stock : si 2 personnes commandent la
-// derniere bouteille en meme temps, une seule requete reussit, l'autre
-// recoit l'erreur "stock_insuffisant".
+// Commande d'une bouteille déjà en stock. Passe par la fonction Postgres
+// `create_stock_order` (voir supabase/migrations/0001_init.sql) qui gère
+// la décrémentation ATOMIQUE du stock : si 2 personnes commandent la
+// dernière bouteille en même temps, une seule requête réussit, l'autre
+// reçoit l'erreur "stock_insuffisant".
 export async function POST(request: NextRequest) {
   let body: {
     recipeId?: string;
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Requete invalide." }, { status: 400 });
+    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
   const { recipeId, quantity, customerName, customerEmail } = body;
@@ -40,12 +40,12 @@ export async function POST(request: NextRequest) {
   if (error) {
     if (error.message.includes("stock_insuffisant")) {
       return NextResponse.json(
-        { error: "Desole, il n'y a plus assez de stock disponible pour cette quantite." },
+        { error: "Désolé, il n'y a plus assez de stock disponible pour cette quantité." },
         { status: 409 }
       );
     }
     console.error("[api/orders/stock] erreur:", error);
-    return NextResponse.json({ error: "Une erreur est survenue, reessaie." }, { status: 500 });
+    return NextResponse.json({ error: "Une erreur est survenue, réessaie." }, { status: 500 });
   }
 
   await notify({

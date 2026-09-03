@@ -37,7 +37,7 @@ export function AdminNav() {
         ))}
       </nav>
       <button onClick={handleLogout} className="text-xs text-muted underline">
-        Deconnexion
+        Déconnexion
       </button>
     </div>
   );

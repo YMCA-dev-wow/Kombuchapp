@@ -12,7 +12,7 @@ export async function PATCH(
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Requete invalide." }, { status: 400 });
+    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
   if (body.status !== "validee" && body.status !== "refusee") {

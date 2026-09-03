@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Requete invalide." }, { status: 400 });
+    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
   const email = body.email?.trim().toLowerCase();
@@ -17,11 +17,11 @@ export async function POST(request: NextRequest) {
 
   const { error } = await supabaseAdmin.from("subscribers").insert({ email });
 
-  // Code 23505 = violation de contrainte unique -> deja inscrit, on
-  // considere ca comme un succes (pas besoin de le dire a l'utilisateur).
+  // Code 23505 = violation de contrainte unique -> déjà inscrit, on
+  // considère ça comme un succès (pas besoin de le dire à l'utilisateur).
   if (error && error.code !== "23505") {
     console.error("[api/subscribe] erreur:", error);
-    return NextResponse.json({ error: "Une erreur est survenue, reessaie." }, { status: 500 });
+    return NextResponse.json({ error: "Une erreur est survenue, réessaie." }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true }, { status: 201 });

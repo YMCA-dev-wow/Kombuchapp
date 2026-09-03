@@ -37,7 +37,7 @@ export default function SurCommandePage() {
       }
       setSuccess(true);
     } catch {
-      setError("Impossible de contacter le serveur. Verifie ta connexion.");
+      setError("Impossible de contacter le serveur. Vérifie ta connexion.");
     } finally {
       setLoading(false);
     }
@@ -46,9 +46,9 @@ export default function SurCommandePage() {
   if (success) {
     return (
       <div className="py-10 text-center">
-        <p className="text-lg font-medium">Demande envoyee !</p>
+        <p className="text-lg font-medium">Demande envoyée !</p>
         <p className="mt-1 text-sm text-muted">
-          Le producteur va etudier ta demande et te recontacter pour la valider.
+          Le producteur va étudier ta demande et te recontacter pour la valider.
         </p>
       </div>
     );
@@ -58,13 +58,13 @@ export default function SurCommandePage() {
     <div>
       <h1 className="mb-1 text-xl font-semibold">Sur commande</h1>
       <p className="mb-5 text-sm text-muted">
-        Une recette precise en tete, une quantite ou une date particuliere ? Fais ta demande,
-        elle sera validee manuellement.
+        Une recette précise en tête, une quantité ou une date particulière ? Fais ta demande,
+        elle sera validée manuellement.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium">Recette souhaitee</label>
+          <label className="mb-1 block text-sm font-medium">Recette souhaitée</label>
           <input
             type="text"
             value={recipeName}
@@ -76,7 +76,7 @@ export default function SurCommandePage() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Details (optionnel)</label>
+          <label className="mb-1 block text-sm font-medium">Détails (optionnel)</label>
           <textarea
             value={details}
             onChange={(e) => setDetails(e.target.value)}
@@ -86,7 +86,7 @@ export default function SurCommandePage() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Quantite</label>
+          <label className="mb-1 block text-sm font-medium">Quantité</label>
           <input
             type="number"
             min={1}
@@ -98,7 +98,7 @@ export default function SurCommandePage() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Date souhaitee (optionnel)</label>
+          <label className="mb-1 block text-sm font-medium">Date souhaitée (optionnel)</label>
           <input
             type="date"
             value={desiredDate}
@@ -108,7 +108,7 @@ export default function SurCommandePage() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Ton prenom / nom</label>
+          <label className="mb-1 block text-sm font-medium">Ton prénom / nom</label>
           <input
             type="text"
             value={customerName}

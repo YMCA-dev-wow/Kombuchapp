@@ -9,15 +9,15 @@ import { OrderModal } from "@/components/OrderModal";
 type SortOption = "alpha" | "stock-desc" | "stock-asc";
 
 const SORT_LABELS: Record<SortOption, string> = {
-  alpha: "Alphabetique (A -> Z)",
-  "stock-desc": "Stock decroissant",
+  alpha: "Alphabétique (A -> Z)",
+  "stock-desc": "Stock décroissant",
   "stock-asc": "Stock croissant",
 };
 
-// Affiche le stock des recettes actives et le tient a jour EN TEMPS REEL
-// grace a Supabase Realtime : des qu'une commande decremente le stock
-// (ou qu'un reappro l'augmente), tous les navigateurs ouverts sur la
-// boutique voient la quantite se mettre a jour automatiquement.
+// Affiche le stock des recettes actives et le tient à jour EN TEMPS REEL
+// grâce à Supabase Realtime : dès qu'une commande décrémente le stock
+// (ou qu'un réappro l'augmente), tous les navigateurs ouverts sur la
+// boutique voient la quantité se mettre à jour automatiquement.
 export function StockList() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,9 +38,9 @@ export function StockList() {
   }
 
   useEffect(() => {
-    // Chargement initial des donnees au montage : cas d'usage explicitement
-    // recommande par React (fetch au mount), la regle react-hooks/set-state-in-effect
-    // vise d'autres anti-patterns (etat derive), pas celui-ci.
+    // Chargement initial des données au montage : cas d'usage explicitement
+    // recommandé par React (fetch au mount), la règle react-hooks/set-state-in-effect
+    // vise d'autres anti-patterns (état dérivé), pas celui-ci.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadRecipes();
 
@@ -116,7 +116,7 @@ export function StockList() {
       {outOfStock.length > 0 && (
         <details className="rounded-xl border border-border bg-white/60 p-4">
           <summary className="cursor-pointer text-sm font-medium">
-            Gouts en rupture de stock ({outOfStock.length})
+            Goûts en rupture de stock ({outOfStock.length})
           </summary>
           <div className="mt-3 space-y-3">
             {outOfStock.map((recipe) => (

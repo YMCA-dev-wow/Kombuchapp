@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Requete invalide." }, { status: 400 });
+    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
   if (!body.password) {
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error("[api/admin/login] config manquante:", err);
     return NextResponse.json(
-      { error: "Configuration serveur incomplete. Voir GUIDE_DEMARRAGE.md." },
+      { error: "Configuration serveur incomplète. Voir GUIDE_DEMARRAGE.md." },
       { status: 500 }
     );
   }

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { notify } from "@/lib/notifications";
 
-// Depot d'une demande "sur commande" (recette precise, quantite, date
-// souhaitee). Reste en statut "en_attente" jusqu'a validation manuelle
+// Dépôt d'une demande "sur commande" (recette précisée, quantité, date
+// souhaitée). Reste en statut "en_attente" jusqu'à validation manuelle
 // par le producteur dans l'espace admin.
 export async function POST(request: NextRequest) {
   let body: {
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Requete invalide." }, { status: 400 });
+    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
   const { recipeName, details, quantity, desiredDate, customerName, customerEmail } = body;
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     console.error("[api/orders/custom] erreur:", error);
-    return NextResponse.json({ error: "Une erreur est survenue, reessaie." }, { status: 500 });
+    return NextResponse.json({ error: "Une erreur est survenue, réessaie." }, { status: 500 });
   }
 
   await notify({

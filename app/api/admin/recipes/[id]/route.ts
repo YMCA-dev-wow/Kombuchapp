@@ -17,7 +17,7 @@ export async function PATCH(
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Requete invalide." }, { status: 400 });
+    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };

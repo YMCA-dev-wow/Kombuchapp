@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-// Boite d'inscription aux alertes "nouveau stock disponible" (voir
+// Boîte d'inscription aux alertes "nouveau stock disponible" (voir
 // /api/subscribe et le bouton de diffusion dans l'espace producteur).
 export function SubscribeBox() {
   const [email, setEmail] = useState("");
@@ -25,7 +25,7 @@ export function SubscribeBox() {
   if (status === "done") {
     return (
       <p className="rounded-xl border border-border bg-white/60 p-4 text-sm text-muted">
-        Tu seras prevenu(e) par email des qu&apos;un nouveau stock est disponible !
+        Tu seras prévenu(e) par email dès qu&apos;un nouveau stock est disponible !
       </p>
     );
   }
@@ -48,7 +48,7 @@ export function SubscribeBox() {
         disabled={status === "loading"}
         className="shrink-0 rounded-full bg-accent px-3 py-2 text-xs font-medium text-accent-foreground disabled:opacity-60"
       >
-        Me prevenir
+        Me prévenir
       </button>
     </form>
   );

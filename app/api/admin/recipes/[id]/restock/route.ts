@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-// "Remettre en stock en 1 clic" : ajoute la quantite de reappro par
-// defaut de la recette (ou une quantite precisee) au stock courant.
+// "Remettre en stock en 1 clic" : ajoute la quantité de réappro par
+// défaut de la recette (ou une quantité précisée) au stock courant.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -13,7 +13,7 @@ export async function POST(
     const body = await request.json();
     quantity = body?.quantity;
   } catch {
-    // pas de body -> on utilise la quantite de reappro par defaut de la recette
+    // pas de body -> on utilise la quantité de réappro par défaut de la recette
   }
 
   const { data, error } = await supabaseAdmin.rpc("restock_recipe", {

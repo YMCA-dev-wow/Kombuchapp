@@ -42,7 +42,7 @@ export function OrderModal({
       setSuccess(true);
       onSuccess();
     } catch {
-      setError("Impossible de contacter le serveur. Verifie ta connexion.");
+      setError("Impossible de contacter le serveur. Vérifie ta connexion.");
     } finally {
       setLoading(false);
     }
@@ -53,8 +53,8 @@ export function OrderModal({
       <div className="w-full max-w-md rounded-t-2xl bg-background p-5 shadow-xl sm:rounded-2xl">
         {success ? (
           <div className="py-6 text-center">
-            <p className="text-lg font-medium">Commande confirmee !</p>
-            <p className="mt-1 text-sm text-muted">Merci {customerName}, ta commande de {quantity} x {recipe.name} est enregistree.</p>
+            <p className="text-lg font-medium">Commande confirmée !</p>
+            <p className="mt-1 text-sm text-muted">Merci {customerName}, ta commande de {quantity} x {recipe.name} est enregistrée.</p>
             <button
               onClick={onClose}
               className="mt-5 w-full rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-foreground"
@@ -72,7 +72,7 @@ export function OrderModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium">Quantite</label>
+              <label className="mb-1 block text-sm font-medium">Quantité</label>
               <input
                 type="number"
                 min={1}
@@ -86,7 +86,7 @@ export function OrderModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium">Ton prenom / nom</label>
+              <label className="mb-1 block text-sm font-medium">Ton prénom / nom</label>
               <input
                 type="text"
                 value={customerName}

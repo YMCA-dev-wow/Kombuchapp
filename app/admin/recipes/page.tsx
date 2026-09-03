@@ -29,9 +29,9 @@ export default function AdminRecipesPage() {
   }
 
   useEffect(() => {
-    // Chargement initial des donnees au montage : cas d'usage explicitement
-    // recommande par React (fetch au mount), la regle react-hooks/set-state-in-effect
-    // vise d'autres anti-patterns (etat derive), pas celui-ci.
+    // Chargement initial des données au montage : cas d'usage explicitement
+    // recommandé par React (fetch au mount), la règle react-hooks/set-state-in-effect
+    // vise d'autres anti-patterns (état dérivé), pas celui-ci.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadRecipes();
   }, []);
@@ -46,7 +46,7 @@ export default function AdminRecipesPage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error ?? "Erreur lors de la creation.");
+      setError(data.error ?? "Erreur lors de la création.");
       return;
     }
     setName("");
@@ -147,7 +147,7 @@ export default function AdminRecipesPage() {
               />
             </div>
             <div className="flex-1">
-              <label className="mb-1 block text-sm font-medium">Reappro par defaut</label>
+              <label className="mb-1 block text-sm font-medium">Réappro par défaut</label>
               <input
                 type="number"
                 min={1}
@@ -159,7 +159,7 @@ export default function AdminRecipesPage() {
           </div>
           {error && <p className="text-sm text-danger">{error}</p>}
           <button className="w-full rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-foreground">
-            Creer la recette
+            Créer la recette
           </button>
         </form>
       )}
@@ -211,7 +211,7 @@ export default function AdminRecipesPage() {
                     )}
                     <p className="mt-0.5 text-xs text-muted">
                       {recipe.quantity} en stock · reappro +{recipe.default_restock_quantity} ·{" "}
-                      {recipe.active ? "visible" : "masquee"}
+                      {recipe.active ? "visible" : "masquée"}
                     </p>
                   </button>
                 </div>
@@ -229,7 +229,7 @@ export default function AdminRecipesPage() {
                         [recipe.id]: Number(e.target.value),
                       }))
                     }
-                    aria-label={`Quantite a reapprovisionner pour ${recipe.name}`}
+                    aria-label={`Quantité à réapprovisionner pour ${recipe.name}`}
                     className="w-16 rounded-lg border border-border bg-white px-2 py-1.5 text-xs"
                   />
                   <button

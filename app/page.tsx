@@ -7,19 +7,19 @@ export default function HomePage() {
       <div>
         <h1 className="mb-1 text-xl font-semibold">La boutique</h1>
         <p className="mb-5 text-sm text-muted">
-          Stock disponible en direct. Une recette qui t&apos;interesse mais qui n&apos;est pas encore prete ?
+          Stock disponible en direct. Une recette qui t&apos;intéresse mais qui n&apos;est pas encore prête ?
           Passe par la section{" "}
           <a href="/sur-commande" className="text-accent underline">
             Sur commande
           </a>
-          . Les bouteilles commandees ici doivent etre recuperees sous 7 jours : au-dela, passe plutot par
-          &quot;Sur commande&quot;, ou recommande plus tard directement depuis la boutique (sous reserve de stock disponible).
+          . Les bouteilles commandées ici doivent être récupérées sous 7 jours : au-delà, passe plutôt par
+          &quot;Sur commande&quot;, ou recommande plus tard directement depuis la boutique (sous réserve de stock disponible).
         </p>
         <StockList />
       </div>
 
       <div>
-        <p className="mb-2 text-sm font-medium">Etre prevenu(e) des nouveaux stocks</p>
+        <p className="mb-2 text-sm font-medium">Être prévenu(e) des nouveaux stocks</p>
         <SubscribeBox />
       </div>
     </div>

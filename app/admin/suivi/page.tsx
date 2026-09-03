@@ -73,17 +73,17 @@ export default function AdminSuiviPage() {
         <div className="rounded-xl border border-border bg-white/60 p-4">
           <p className="text-2xl font-semibold">{stats.totalProduced}</p>
           <p className="text-xs text-muted">
-            bouteilles produites au total ({stats.currentStock} en stock + {stats.totalSoldOrGiven} deja parties)
+            bouteilles produites au total ({stats.currentStock} en stock + {stats.totalSoldOrGiven} déjà parties)
           </p>
         </div>
         <div className="rounded-xl border border-border bg-white/60 p-4">
           <p className="text-2xl font-semibold">{formatEuros(stats.totalRevenue)} EUR</p>
-          <p className="text-xs text-muted">somme encaissee (bouteilles vendues, hors dons)</p>
+          <p className="text-xs text-muted">somme encaissée (bouteilles vendues, hors dons)</p>
         </div>
       </div>
 
       {!hasOrders ? (
-        <p className="text-sm text-muted">Aucune commande enregistree pour le moment.</p>
+        <p className="text-sm text-muted">Aucune commande enregistrée pour le moment.</p>
       ) : (
         <>
           <div>

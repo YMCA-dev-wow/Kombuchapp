@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-// Protege par middleware.ts (verifie la session admin avant d'arriver ici).
+// Protégé par middleware.ts (vérifie la session admin avant d'arriver ici).
 
 export async function GET() {
   const { data, error } = await supabaseAdmin
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Requete invalide." }, { status: 400 });
+    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
   if (!body.name?.trim()) {

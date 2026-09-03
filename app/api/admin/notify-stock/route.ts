@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendStockAvailableBroadcast } from "@/lib/notifications";
 
-// GET : nombre d'abonnes actuel (pour afficher une confirmation avant envoi).
+// GET : nombre d'abonnés actuel (pour afficher une confirmation avant envoi).
 export async function GET() {
   const { count, error } = await supabaseAdmin
     .from("subscribers")
@@ -14,7 +14,7 @@ export async function GET() {
   return NextResponse.json({ count: count ?? 0 });
 }
 
-// POST : diffuse une invitation "nouveau stock disponible" a tous les abonnes.
+// POST : diffuse une invitation "nouveau stock disponible" à tous les abonnés.
 export async function POST(request: NextRequest) {
   const { data, error } = await supabaseAdmin.from("subscribers").select("email");
   if (error) {

@@ -20,6 +20,8 @@ export type Order = {
   order_type: "vendu" | "donne";
   unit_amount: number | null;
   created_by: "site" | "admin";
+  delivery_status: "a_livrer" | "livree";
+  pickup_status: "a_recuperer" | "recuperee";
   created_at: string;
 };
 

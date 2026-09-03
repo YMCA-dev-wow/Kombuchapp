@@ -13,12 +13,14 @@ export async function PATCH(
     createdAt: string;
     orderType: "vendu" | "donne";
     unitAmount: number | null;
+    deliveryStatus: "a_livrer" | "livree";
+    pickupStatus: "a_recuperer" | "recuperee";
   }>;
 
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Requete invalide." }, { status: 400 });
+    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
   const update: Record<string, unknown> = {};
@@ -31,6 +33,8 @@ export async function PATCH(
     if (body.orderType === "donne") update.unit_amount = null;
   }
   if (body.unitAmount !== undefined && body.orderType !== "donne") update.unit_amount = body.unitAmount;
+  if (body.deliveryStatus !== undefined) update.delivery_status = body.deliveryStatus;
+  if (body.pickupStatus !== undefined) update.pickup_status = body.pickupStatus;
 
   const { data, error } = await supabaseAdmin
     .from("orders")

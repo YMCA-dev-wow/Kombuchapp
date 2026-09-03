@@ -18,6 +18,22 @@ type EditableFields = {
   createdAt: string;
   orderType: "vendu" | "donne";
   unitAmount: number | null;
+  deliveryStatus: "a_livrer" | "livree";
+  pickupStatus: "a_recuperer" | "recuperee";
+};
+
+type StatusFilter = "toutes" | "a_livrer" | "livree" | "a_recuperer" | "recuperee" | "vendu" | "donne" | "site" | "admin";
+
+const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
+  toutes: "Tous les statuts",
+  a_livrer: "À livrer",
+  livree: "Livrées",
+  a_recuperer: "À récupérer",
+  recuperee: "Récupérées",
+  vendu: "Vendues",
+  donne: "Offertes",
+  site: "Commande site",
+  admin: "Saisie manuelle",
 };
 
 export default function AdminVentesPage() {
@@ -38,6 +54,7 @@ export default function AdminVentesPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFields, setEditFields] = useState<EditableFields | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("toutes");
 
   async function loadAll() {
     setLoading(true);
@@ -85,7 +102,7 @@ export default function AdminVentesPage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error ?? "Erreur lors de la creation.");
+      setError(data.error ?? "Erreur lors de la création.");
       return;
     }
 
@@ -109,6 +126,8 @@ export default function AdminVentesPage() {
       createdAt: toDateInputValue(order.created_at),
       orderType: order.order_type,
       unitAmount: order.unit_amount,
+      deliveryStatus: order.delivery_status,
+      pickupStatus: order.pickup_status,
     });
   }
 
@@ -125,6 +144,8 @@ export default function AdminVentesPage() {
         createdAt: editFields.createdAt,
         orderType: editFields.orderType,
         unitAmount: editFields.orderType === "donne" ? null : editFields.unitAmount,
+        deliveryStatus: editFields.deliveryStatus,
+        pickupStatus: editFields.pickupStatus,
       }),
     });
     setEditingId(null);
@@ -134,13 +155,41 @@ export default function AdminVentesPage() {
   }
 
   async function handleDelete(orderId: string) {
-    const confirmed = window.confirm("Supprimer definitivement cette commande ? Cette action est irreversible.");
+    const confirmed = window.confirm("Supprimer définitivement cette commande ? Cette action est irréversible.");
     if (!confirmed) return;
     setBusyId(orderId);
     await fetch(`/api/admin/orders/${orderId}`, { method: "DELETE" });
     await loadAll();
     setBusyId(null);
   }
+
+  function matchesFilter(order: Order): boolean {
+    switch (statusFilter) {
+      case "toutes":
+        return true;
+      case "a_livrer":
+      case "livree":
+        return order.delivery_status === statusFilter;
+      case "a_recuperer":
+      case "recuperee":
+        return order.pickup_status === statusFilter;
+      case "vendu":
+      case "donne":
+        return order.order_type === statusFilter;
+      case "site":
+      case "admin":
+        return order.created_by === statusFilter;
+      default:
+        return true;
+    }
+  }
+
+  // Ordre chronologique décroissant par défaut : l'API renvoie déjà les
+  // commandes triées ainsi, on le garantit aussi côté client (utile si la
+  // liste est un jour alimentée autrement).
+  const visibleOrders = orders
+    .filter(matchesFilter)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
     <div className="space-y-5">
@@ -184,7 +233,7 @@ export default function AdminVentesPage() {
 
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="mb-1 block text-sm font-medium">Quantite</label>
+              <label className="mb-1 block text-sm font-medium">Quantité</label>
               <input
                 type="number"
                 min={1}
@@ -228,7 +277,7 @@ export default function AdminVentesPage() {
             </div>
             {formType === "vendu" && (
               <div className="flex-1">
-                <label className="mb-1 block text-sm font-medium">Montant encaisse (EUR)</label>
+                <label className="mb-1 block text-sm font-medium">Montant encaissé (EUR)</label>
                 <input
                   type="number"
                   min={0}
@@ -248,13 +297,33 @@ export default function AdminVentesPage() {
         </form>
       )}
 
+      {orders.length > 0 && (
+        <div className="flex items-center justify-end gap-2 text-xs text-muted">
+          <label htmlFor="filter-statut">Filtrer par</label>
+          <select
+            id="filter-statut"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            className="rounded-lg border border-border bg-white px-2 py-1 text-xs"
+          >
+            {(Object.keys(STATUS_FILTER_LABELS) as StatusFilter[]).map((option) => (
+              <option key={option} value={option}>
+                {STATUS_FILTER_LABELS[option]}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-muted">Chargement...</p>
       ) : orders.length === 0 ? (
-        <p className="text-sm text-muted">Aucune commande enregistree pour le moment.</p>
+        <p className="text-sm text-muted">Aucune commande enregistrée pour le moment.</p>
+      ) : visibleOrders.length === 0 ? (
+        <p className="text-sm text-muted">Aucune commande ne correspond à ce filtre.</p>
       ) : (
         <div className="space-y-3">
-          {orders.map((order) => (
+          {visibleOrders.map((order) => (
             <div key={order.id} className="rounded-xl border border-border bg-white/60 p-4">
               {editingId === order.id && editFields ? (
                 <div className="space-y-2">
@@ -312,6 +381,28 @@ export default function AdminVentesPage() {
                     )}
                   </div>
                   <div className="flex gap-2">
+                    <select
+                      value={editFields.deliveryStatus}
+                      onChange={(e) =>
+                        setEditFields({ ...editFields, deliveryStatus: e.target.value as "a_livrer" | "livree" })
+                      }
+                      className="flex-1 rounded-lg border border-border bg-white px-2 py-2 text-sm"
+                    >
+                      <option value="a_livrer">À livrer</option>
+                      <option value="livree">Livrée</option>
+                    </select>
+                    <select
+                      value={editFields.pickupStatus}
+                      onChange={(e) =>
+                        setEditFields({ ...editFields, pickupStatus: e.target.value as "a_recuperer" | "recuperee" })
+                      }
+                      className="flex-1 rounded-lg border border-border bg-white px-2 py-2 text-sm"
+                    >
+                      <option value="a_recuperer">À récupérer</option>
+                      <option value="recuperee">Récupérée</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
                     <button
                       onClick={() => handleSaveEdit(order.id)}
                       disabled={busyId === order.id}
@@ -346,6 +437,26 @@ export default function AdminVentesPage() {
                       {" · "}
                       {order.created_by === "site" ? "commande site" : "saisie manuelle"}
                     </p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] ${
+                          order.delivery_status === "livree"
+                            ? "bg-accent/20 text-accent"
+                            : "bg-muted/20 text-muted"
+                        }`}
+                      >
+                        {order.delivery_status === "livree" ? "Livrée" : "À livrer"}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] ${
+                          order.pickup_status === "recuperee"
+                            ? "bg-accent/20 text-accent"
+                            : "bg-muted/20 text-muted"
+                        }`}
+                      >
+                        {order.pickup_status === "recuperee" ? "Récupérée" : "À récupérer"}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex shrink-0 gap-2">
                     <button

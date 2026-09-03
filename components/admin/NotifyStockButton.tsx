@@ -18,7 +18,7 @@ export function NotifyStockButton() {
   async function handleSend() {
     if (count === 0) return;
     const confirmed = window.confirm(
-      `Envoyer une invitation "nouveau stock disponible" a ${count} abonne${count && count > 1 ? "s" : ""} ?`
+      `Envoyer une invitation "nouveau stock disponible" à ${count} abonné${count && count > 1 ? "s" : ""} ?`
     );
     if (!confirmed) return;
 
@@ -28,7 +28,7 @@ export function NotifyStockButton() {
       const res = await fetch("/api/admin/notify-stock", { method: "POST" });
       const data = await res.json();
       if (res.ok) {
-        setResult(`Envoye a ${data.sent} personne${data.sent > 1 ? "s" : ""}.`);
+        setResult(`Envoyé à ${data.sent} personne${data.sent > 1 ? "s" : ""}.`);
       } else {
         setResult(data.error ?? "Erreur lors de l'envoi.");
       }
@@ -45,7 +45,7 @@ export function NotifyStockButton() {
       <p className="mt-1 text-xs text-muted">
         {count === null
           ? "Chargement..."
-          : `${count} abonne${count > 1 ? "s" : ""} recevront une invitation a consulter la boutique.`}
+          : `${count} abonné${count > 1 ? "s" : ""} recevront une invitation à consulter la boutique.`}
       </p>
       {result && <p className="mt-2 text-xs text-accent">{result}</p>}
       <button
@@ -53,7 +53,7 @@ export function NotifyStockButton() {
         disabled={sending || !count}
         className="mt-3 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
       >
-        {sending ? "Envoi..." : "Prevenir du nouveau stock"}
+        {sending ? "Envoi..." : "Prévenir du nouveau stock"}
       </button>
     </div>
   );

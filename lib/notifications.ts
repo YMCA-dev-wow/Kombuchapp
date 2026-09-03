@@ -1,21 +1,22 @@
 import "server-only";
 import { Resend } from "resend";
+import { unsubscribeUrl } from "@/lib/unsubscribe";
 
 // =======================================================================
-// Couche de NOTIFICATIONS, pensee pour rester modulaire.
+// Couche de NOTIFICATIONS, pensée pour rester modulaire.
 //
-// Aujourd'hui : un seul "canal" est branche -> l'email via Resend.
+// Aujourd'hui : un seul "canal" est branché -> l'email via Resend.
 // Plus tard : il suffira d'ajouter un nouveau canal (ex: WebPushChannel)
 // dans le tableau `channels` ci-dessous pour envoyer aussi des
 // notifications Web Push (PWA), SANS toucher au reste du code (routes
 // API, pages...) qui appelle uniquement `notify(event)`.
 //
-// IMPORTANT : chaque destinataire (producteur / client) recoit un email
-// envoye dans un appel SEPARE a Resend. Si on les groupe dans un seul
-// envoi (un seul "to" avec plusieurs adresses), un probleme sur UNE
-// adresse (ex: domaine d'envoi non verifie, adresse invalide) fait
-// echouer l'envoi en entier -- y compris pour l'autre destinataire.
-// En les separant, chaque email reussit ou echoue independamment.
+// IMPORTANT : chaque destinataire (producteur / client) reçoit un email
+// envoyé dans un appel SÉPARÉ à Resend. Si on les groupe dans un seul
+// envoi (un seul "to" avec plusieurs adresses), un problème sur UNE
+// adresse (ex: domaine d'envoi non vérifié, adresse invalide) fait
+// échouer l'envoi en entier -- y compris pour l'autre destinataire.
+// En les séparant, chaque email réussit ou échoue indépendamment.
 // =======================================================================
 
 export type NotificationEvent =
@@ -47,15 +48,15 @@ export interface NotificationChannel {
 }
 
 // -----------------------------------------------------------------------
-// Canal EMAIL (Resend) - actif par defaut.
-// Necessite RESEND_API_KEY + RESEND_FROM_EMAIL + ADMIN_NOTIFICATION_EMAIL
+// Canal EMAIL (Resend) - actif par défaut.
+// Nécessite RESEND_API_KEY + RESEND_FROM_EMAIL + ADMIN_NOTIFICATION_EMAIL
 // dans .env.local. Si absents, le canal se contente d'un log (pas de crash).
 //
 // ATTENTION : avec l'adresse d'essai onboarding@resend.dev (domaine non
-// verifie dans Resend), l'envoi vers de vrais destinataires n'est PAS
-// fiable. Verifie ton propre nom de domaine dans Resend (Domains > Add
+// vérifié dans Resend), l'envoi vers de vrais destinataires n'est PAS
+// fiable. Vérifie ton propre nom de domaine dans Resend (Domains > Add
 // domain) et utilise une adresse comme contact@tondomaine.fr dans
-// RESEND_FROM_EMAIL des que possible -- voir GUIDE_DEMARRAGE.md.
+// RESEND_FROM_EMAIL dès que possible -- voir GUIDE_DEMARRAGE.md.
 // -----------------------------------------------------------------------
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
@@ -73,16 +74,16 @@ function buildMessages(event: NotificationEvent): Message[] {
         messages.push({
           to: adminEmail,
           subject: `Nouvelle commande : ${event.recipeName} x${event.quantity}`,
-          html: `<p>Commande confirmee pour <strong>${event.customerName}</strong></p>
+          html: `<p>Commande confirmée pour <strong>${event.customerName}</strong></p>
                  <p>${event.quantity} x ${event.recipeName}</p>`,
         });
       }
       if (event.customerEmail) {
         messages.push({
           to: event.customerEmail,
-          subject: `Commande confirmee : ${event.recipeName} x${event.quantity}`,
-          html: `<p>Merci ${event.customerName} ! Ta commande de ${event.quantity} x ${event.recipeName} est confirmee.</p>
-                 <p>Pense a venir la recuperer sous 7 jours.</p>`,
+          subject: `Commande confirmée : ${event.recipeName} x${event.quantity}`,
+          html: `<p>Merci ${event.customerName} ! Ta commande de ${event.quantity} x ${event.recipeName} est confirmée.</p>
+                 <p>Pense à venir la récupérer sous 7 jours.</p>`,
         });
       }
       break;
@@ -93,15 +94,15 @@ function buildMessages(event: NotificationEvent): Message[] {
           to: adminEmail,
           subject: `Nouvelle demande "sur commande" de ${event.customerName}`,
           html: `<p><strong>${event.customerName}</strong> demande ${event.quantity} x ${event.recipeName}</p>
-                 ${event.desiredDate ? `<p>Date souhaitee : ${event.desiredDate}</p>` : ""}`,
+                 ${event.desiredDate ? `<p>Date souhaitée : ${event.desiredDate}</p>` : ""}`,
         });
       }
       if (event.customerEmail) {
         messages.push({
           to: event.customerEmail,
-          subject: `Ta demande "${event.recipeName}" a bien ete recue`,
-          html: `<p>Merci ${event.customerName} ! Ta demande de ${event.quantity} x ${event.recipeName} a bien ete recue.</p>
-                 <p>Elle est en attente de validation manuelle, tu recevras un email des que c'est fait.</p>`,
+          subject: `Ta demande "${event.recipeName}" a bien été reçue`,
+          html: `<p>Merci ${event.customerName} ! Ta demande de ${event.quantity} x ${event.recipeName} a bien été reçue.</p>
+                 <p>Elle est en attente de validation manuelle, tu recevras un email dès que c'est fait.</p>`,
         });
       }
       break;
@@ -113,9 +114,9 @@ function buildMessages(event: NotificationEvent): Message[] {
         messages.push({
           to: event.customerEmail,
           subject: validee
-            ? `Ta commande "${event.recipeName}" est validee !`
-            : `A propos de ta demande "${event.recipeName}"`,
-          html: `<p>${validee ? "Bonne nouvelle, ta demande a ete validee." : "Ta demande n'a malheureusement pas pu etre validee."}</p>
+            ? `Ta commande "${event.recipeName}" est validée !`
+            : `À propos de ta demande "${event.recipeName}"`,
+          html: `<p>${validee ? "Bonne nouvelle, ta demande a été validée." : "Ta demande n'a malheureusement pas pu être validée."}</p>
                  ${event.adminNote ? `<p>${event.adminNote}</p>` : ""}`,
         });
       }
@@ -130,7 +131,7 @@ const emailChannel: NotificationChannel = {
   name: "email",
   async send(event) {
     if (!resend) {
-      console.log("[notifications:email] RESEND_API_KEY absent, notification ignoree:", event);
+      console.log("[notifications:email] RESEND_API_KEY absent, notification ignorée:", event);
       return;
     }
     const messages = buildMessages(event);
@@ -146,14 +147,14 @@ const emailChannel: NotificationChannel = {
             html: message.html,
           });
           if (error) {
-            // On ne bloque jamais une commande a cause d'un email qui echoue,
-            // mais on log l'erreur precise renvoyee par Resend (visible dans
+            // On ne bloque jamais une commande à cause d'un email qui échoue,
+            // mais on log l'erreur précise renvoyée par Resend (visible dans
             // les logs Vercel) pour pouvoir diagnostiquer (ex: domaine non
-            // verifie, adresse invalide...).
-            console.error(`[notifications:email] echec d'envoi a ${message.to}:`, error);
+            // vérifié, adresse invalide...).
+            console.error(`[notifications:email] échec d'envoi à ${message.to}:`, error);
           }
         } catch (err) {
-          console.error(`[notifications:email] echec d'envoi a ${message.to}:`, err);
+          console.error(`[notifications:email] échec d'envoi à ${message.to}:`, err);
         }
       })
     );
@@ -161,8 +162,8 @@ const emailChannel: NotificationChannel = {
 };
 
 // -----------------------------------------------------------------------
-// Canal WEB PUSH (PWA) - PLACEHOLDER pour une prochaine iteration.
-// Pour l'activer : implementer send() (ex: avec la lib `web-push`),
+// Canal WEB PUSH (PWA) - PLACEHOLDER pour une prochaine itération.
+// Pour l'activer : implémenter send() (ex: avec la lib `web-push`),
 // stocker les abonnements push des utilisateurs en base, puis ajouter
 // `pushChannel` au tableau `channels` plus bas. Aucune autre partie du
 // code n'a besoin de changer.
@@ -170,7 +171,7 @@ const emailChannel: NotificationChannel = {
 // const pushChannel: NotificationChannel = {
 //   name: "web-push",
 //   async send(event) {
-//     // TODO: envoyer une notification push aux abonnes concernes
+//     // TODO: envoyer une notification push aux abonnés concernés
 //   },
 // };
 
@@ -181,15 +182,15 @@ export async function notify(event: NotificationEvent): Promise<void> {
 }
 
 // -----------------------------------------------------------------------
-// DIFFUSION "nouveau stock disponible" : envoyee manuellement par le
-// producteur a toute la liste d'abonnes (voir /api/subscribe et la table
-// `subscribers`). Simple invitation a aller voir le site, sans detailler
+// DIFFUSION "nouveau stock disponible" : envoyée manuellement par le
+// producteur à toute la liste d'abonnés (voir /api/subscribe et la table
+// `subscribers`). Simple invitation à aller voir le site, sans détailler
 // le stock dans le contenu du message.
 //
-// On utilise l'API "batch" de Resend (jusqu'a 100 emails par appel), ce
-// qui correspond justement a la limite du plan gratuit (100 emails/jour) :
-// une diffusion complete tient dans un seul quota journalier tant que la
-// liste d'abonnes ne depasse pas 100 personnes.
+// On utilise l'API "batch" de Resend (jusqu'à 100 emails par appel), ce
+// qui correspond justement à la limite du plan gratuit (100 emails/jour) :
+// une diffusion complète tient dans un seul quota journalier tant que la
+// liste d'abonnés ne dépasse pas 100 personnes.
 // -----------------------------------------------------------------------
 const BATCH_SIZE = 100;
 
@@ -206,15 +207,12 @@ export async function sendStockAvailableBroadcast(
   siteUrl: string
 ): Promise<{ sent: number }> {
   if (!resend) {
-    console.log("[notifications:email] RESEND_API_KEY absent, diffusion ignoree.");
+    console.log("[notifications:email] RESEND_API_KEY absent, diffusion ignorée.");
     return { sent: 0 };
   }
   if (emails.length === 0) {
     return { sent: 0 };
   }
-
-  const html = `<p>Du nouveau kombucha vient d'arriver en stock !</p>
-                <p><a href="${siteUrl}">Va jeter un oeil a la boutique</a> avant qu'il n'y en ait plus.</p>`;
 
   let sent = 0;
   for (const batch of chunk(emails, BATCH_SIZE)) {
@@ -224,16 +222,20 @@ export async function sendStockAvailableBroadcast(
           from: fromEmail,
           to: [email],
           subject: "Nouveau stock de kombucha disponible !",
-          html,
+          html: `<p>Du nouveau kombucha vient d'arriver en stock !</p>
+                 <p><a href="${siteUrl}">Va jeter un œil à la boutique</a> avant qu'il n'y en ait plus.</p>
+                 <p style="margin-top:24px;font-size:12px;color:#888888">
+                   <a href="${unsubscribeUrl(email, siteUrl)}">Se désinscrire de ces alertes</a>
+                 </p>`,
         }))
       );
       if (error) {
-        console.error("[notifications:email] echec de la diffusion", error);
+        console.error("[notifications:email] échec de la diffusion", error);
       } else {
         sent += batch.length;
       }
     } catch (err) {
-      console.error("[notifications:email] echec de la diffusion", err);
+      console.error("[notifications:email] échec de la diffusion", err);
     }
   }
 

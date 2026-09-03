@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-// Ledger complet des commandes de stock (celles passees via la boutique
-// + celles ajoutees manuellement par le producteur pour des ventes hors
+// Ledger complet des commandes de stock (celles passées via la boutique
+// + celles ajoutées manuellement par le producteur pour des ventes hors
 // site, ex: remises en main propre).
 
 export async function GET() {
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Requete invalide." }, { status: 400 });
+    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
   const { recipeId, recipeName, quantity, customerName, createdAt, orderType, unitAmount } = body;
@@ -62,11 +62,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Si la ligne est rattachee a une recette existante, on decremente son
-  // stock pour rester coherent (best-effort : on ne bloque pas si le
-  // stock devient negatif, ca reste visible et corrigeable par le
-  // producteur -- contrairement a la commande boutique, il n'y a pas de
-  // verification atomique ici car c'est une saisie manuelle de confiance).
+  // Si la ligne est rattachée à une recette existante, on décrémente son
+  // stock pour rester cohérent (best-effort : on ne bloque pas si le
+  // stock devient négatif, ça reste visible et corrigeable par le
+  // producteur -- contrairement à la commande boutique, il n'y a pas de
+  // vérification atomique ici car c'est une saisie manuelle de confiance).
   if (recipeId) {
     const { data: recipe } = await supabaseAdmin
       .from("recipes")
