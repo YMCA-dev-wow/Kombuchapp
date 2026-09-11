@@ -21,6 +21,7 @@ export function AdminNav() {
     { href: "/admin/ventes", label: "Ventes" },
     { href: "/admin/commandes", label: "Commandes" },
     { href: "/admin/suivi", label: "Suivi" },
+    { href: "/admin/abonnes", label: "Abonnés" },
   ];
 
   return (

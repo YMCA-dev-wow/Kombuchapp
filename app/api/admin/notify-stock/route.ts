@@ -14,8 +14,18 @@ export async function GET() {
   return NextResponse.json({ count: count ?? 0 });
 }
 
-// POST : diffuse une invitation "nouveau stock disponible" à tous les abonnés.
+// POST : diffuse une invitation "nouveau stock disponible" à tous les abonnés,
+// avec un message personnalisé optionnel (nouveaux goûts, pause de
+// production pendant les vacances, etc.).
 export async function POST(request: NextRequest) {
+  let message: string | undefined;
+  try {
+    const body = await request.json();
+    message = typeof body?.message === "string" ? body.message : undefined;
+  } catch {
+    // Corps vide ou invalide : on continue sans message personnalisé.
+  }
+
   const { data, error } = await supabaseAdmin.from("subscribers").select("email");
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -23,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   const origin = request.headers.get("origin") ?? new URL(request.url).origin;
   const emails = (data ?? []).map((row) => row.email as string);
-  const { sent } = await sendStockAvailableBroadcast(emails, origin);
+  const { sent } = await sendStockAvailableBroadcast(emails, origin, message);
 
   return NextResponse.json({ sent, total: emails.length });
 }

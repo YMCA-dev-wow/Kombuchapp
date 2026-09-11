@@ -6,6 +6,7 @@ export function NotifyStockButton() {
   const [count, setCount] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -25,10 +26,15 @@ export function NotifyStockButton() {
     setSending(true);
     setResult(null);
     try {
-      const res = await fetch("/api/admin/notify-stock", { method: "POST" });
+      const res = await fetch("/api/admin/notify-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: message.trim() || undefined }),
+      });
       const data = await res.json();
       if (res.ok) {
         setResult(`Envoyé à ${data.sent} personne${data.sent > 1 ? "s" : ""}.`);
+        setMessage("");
       } else {
         setResult(data.error ?? "Erreur lors de l'envoi.");
       }
@@ -47,6 +53,17 @@ export function NotifyStockButton() {
           ? "Chargement..."
           : `${count} abonné${count > 1 ? "s" : ""} recevront une invitation à consulter la boutique.`}
       </p>
+      <label htmlFor="notify-message" className="mt-3 block text-xs font-medium text-muted">
+        Message personnalisé (optionnel)
+      </label>
+      <textarea
+        id="notify-message"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder="Ex : nouveaux goûts disponibles, pause de production pendant les vacances..."
+        rows={3}
+        className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+      />
       {result && <p className="mt-2 text-xs text-accent">{result}</p>}
       <button
         onClick={handleSend}

@@ -202,9 +202,19 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+// Echappe le minimum necessaire pour inserer sans risque un texte libre
+// (saisi par le producteur) dans le HTML de l'email.
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export async function sendStockAvailableBroadcast(
   emails: string[],
-  siteUrl: string
+  siteUrl: string,
+  customMessage?: string | null
 ): Promise<{ sent: number }> {
   if (!resend) {
     console.log("[notifications:email] RESEND_API_KEY absent, diffusion ignorée.");
@@ -213,6 +223,14 @@ export async function sendStockAvailableBroadcast(
   if (emails.length === 0) {
     return { sent: 0 };
   }
+
+  const trimmedMessage = customMessage?.trim();
+  // Le message custom (annonce de nouveaux gouts, pause de production...)
+  // est affiche tel quel avant l'invitation standard a consulter la
+  // boutique, avec les retours a la ligne preserves.
+  const messageHtml = trimmedMessage
+    ? `<p style="white-space:pre-line">${escapeHtml(trimmedMessage)}</p>`
+    : "";
 
   let sent = 0;
   for (const batch of chunk(emails, BATCH_SIZE)) {
@@ -223,6 +241,7 @@ export async function sendStockAvailableBroadcast(
           to: [email],
           subject: "Nouveau stock de kombucha disponible !",
           html: `<p>Du nouveau kombucha vient d'arriver en stock !</p>
+                 ${messageHtml}
                  <p><a href="${siteUrl}">Va jeter un œil à la boutique</a> avant qu'il n'y en ait plus.</p>
                  <p style="margin-top:24px;font-size:12px;color:#888888">
                    <a href="${unsubscribeUrl(email, siteUrl)}">Se désinscrire de ces alertes</a>
