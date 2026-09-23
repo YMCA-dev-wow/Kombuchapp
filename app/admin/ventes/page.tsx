@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Order, Recipe } from "@/lib/types";
+import { PendingCustomOrders } from "@/components/admin/PendingCustomOrders";
 
 function toDateInputValue(iso: string): string {
   return iso.slice(0, 10);
@@ -22,7 +23,7 @@ type EditableFields = {
   pickupStatus: "a_recuperer" | "recuperee";
 };
 
-type StatusFilter = "toutes" | "a_livrer" | "livree" | "a_recuperer" | "recuperee" | "vendu" | "donne" | "site" | "admin";
+type StatusFilter = "toutes" | "a_livrer" | "livree" | "a_recuperer" | "recuperee" | "vendu" | "donne" | "site" | "admin" | "sur_commande";
 
 const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
   toutes: "Tous les statuts",
@@ -34,6 +35,7 @@ const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
   donne: "Offertes",
   site: "Commande site",
   admin: "Saisie manuelle",
+  sur_commande: "Sur commande",
 };
 
 export default function AdminVentesPage() {
@@ -178,6 +180,7 @@ export default function AdminVentesPage() {
         return order.order_type === statusFilter;
       case "site":
       case "admin":
+      case "sur_commande":
         return order.created_by === statusFilter;
       default:
         return true;
@@ -296,6 +299,8 @@ export default function AdminVentesPage() {
           </button>
         </form>
       )}
+
+      <PendingCustomOrders recipes={recipes} onHonored={loadAll} />
 
       {orders.length > 0 && (
         <div className="flex items-center justify-end gap-2 text-xs text-muted">
@@ -435,7 +440,11 @@ export default function AdminVentesPage() {
                         ? `Vendu${order.unit_amount ? ` · ${order.unit_amount} EUR` : ""}`
                         : "Offert"}
                       {" · "}
-                      {order.created_by === "site" ? "commande site" : "saisie manuelle"}
+                      {order.created_by === "site"
+                        ? "commande site"
+                        : order.created_by === "sur_commande"
+                          ? "sur commande"
+                          : "saisie manuelle"}
                     </p>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       <span

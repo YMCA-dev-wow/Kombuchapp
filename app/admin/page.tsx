@@ -8,7 +8,7 @@ import { NotifyStockButton } from "@/components/admin/NotifyStockButton";
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
-  const [{ count: recipesCount }, { count: pendingCount }, { data: activeRecipes }] = await Promise.all([
+  const [{ count: recipesCount }, { count: pendingCount }, { data: activeRecipes }, { count: toHonorCount }] = await Promise.all([
     supabaseAdmin.from("recipes").select("*", { count: "exact", head: true }).eq("active", true),
     supabaseAdmin
       .from("custom_orders")
@@ -19,6 +19,10 @@ export default async function AdminDashboardPage() {
       .select("id, name, quantity")
       .eq("active", true)
       .order("name", { ascending: true }),
+    supabaseAdmin
+      .from("custom_orders")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "validee"),
   ]);
 
   const inStock = (activeRecipes ?? []).filter((r) => r.quantity > 0);
@@ -43,6 +47,15 @@ export default async function AdminDashboardPage() {
           <p className="text-2xl font-semibold">{pendingCount ?? 0}</p>
           <p className="text-sm text-muted">demandes en attente</p>
         </Link>
+        {(toHonorCount ?? 0) > 0 && (
+          <Link
+            href="/admin/ventes"
+            className="col-span-2 rounded-xl border border-accent/40 bg-accent/5 p-4"
+          >
+            <p className="text-2xl font-semibold">{toHonorCount}</p>
+            <p className="text-sm text-muted">demande{(toHonorCount ?? 0) > 1 ? "s" : ""} validée{(toHonorCount ?? 0) > 1 ? "s" : ""} à honorer</p>
+          </Link>
+        )}
       </div>
 
       <div className="space-y-3">

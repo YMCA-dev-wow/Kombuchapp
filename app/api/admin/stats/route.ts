@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 // Statistiques de ventes pour l'onglet "Suivi" de l'espace producteur.
-// Se base sur la table `orders` (commandes de stock confirmées). Les
-// commandes personnalisées ("sur commande") ne sont pas comptabilisées
-// ici car elles ne sont pas toujours rattachées à une recette existante.
+// Se base sur la table `orders` : ventes boutique, saisies manuelles et
+// demandes "sur commande" une fois honorées (elles y deviennent des
+// lignes de vente). Les demandes seulement validées ne comptent pas encore.
 
 function getISOWeekLabel(date: Date): string {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));

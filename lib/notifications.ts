@@ -40,6 +40,14 @@ export type NotificationEvent =
       recipeName: string;
       customerEmail?: string | null;
       adminNote?: string;
+    }
+  | {
+      // Demande "sur commande" honorée : les bouteilles sont prêtes.
+      type: "commande_sur_commande_prete";
+      recipeName: string;
+      quantity: number;
+      customerName: string;
+      customerEmail?: string | null;
     };
 
 export interface NotificationChannel {
@@ -118,6 +126,17 @@ function buildMessages(event: NotificationEvent): Message[] {
             : `À propos de ta demande "${event.recipeName}"`,
           html: `<p>${validee ? "Bonne nouvelle, ta demande a été validée." : "Ta demande n'a malheureusement pas pu être validée."}</p>
                  ${event.adminNote ? `<p>${event.adminNote}</p>` : ""}`,
+        });
+      }
+      break;
+    }
+    case "commande_sur_commande_prete": {
+      if (event.customerEmail) {
+        messages.push({
+          to: event.customerEmail,
+          subject: `Ta commande "${event.recipeName}" est prête !`,
+          html: `<p>Bonne nouvelle ${event.customerName} : tes ${event.quantity} x ${event.recipeName} sont prêtes !</p>
+                 <p>Pense à venir les récupérer sous 7 jours.</p>`,
         });
       }
       break;

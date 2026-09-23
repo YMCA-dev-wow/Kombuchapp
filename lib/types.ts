@@ -19,7 +19,7 @@ export type Order = {
   status: "confirmee" | "annulee";
   order_type: "vendu" | "donne";
   unit_amount: number | null;
-  created_by: "site" | "admin";
+  created_by: "site" | "admin" | "sur_commande";
   delivery_status: "a_livrer" | "livree";
   pickup_status: "a_recuperer" | "recuperee";
   created_at: string;
@@ -33,8 +33,10 @@ export type CustomOrder = {
   desired_date: string | null;
   customer_name: string;
   customer_email: string | null;
-  status: "en_attente" | "validee" | "refusee";
+  status: "en_attente" | "validee" | "refusee" | "honoree";
   admin_note: string;
+  order_id: string | null;
+  honored_at: string | null;
   created_at: string;
 };
 

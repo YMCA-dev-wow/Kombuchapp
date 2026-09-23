@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Recipe } from "@/lib/types";
+import type { CustomOrder, Recipe } from "@/lib/types";
+import { findMatchingRecipe } from "@/lib/matchRecipe";
 
 export default function AdminRecipesPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [openRequests, setOpenRequests] = useState<CustomOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -25,7 +27,23 @@ export default function AdminRecipesPage() {
     const res = await fetch("/api/admin/recipes");
     const data = await res.json();
     if (res.ok) setRecipes(data.recipes);
+    // Demandes "sur commande" pas encore honorées, pour avertir au moment
+    // du réappro que ces bouteilles sont attendues.
+    const reqRes = await fetch("/api/admin/commandes");
+    const reqData = await reqRes.json();
+    if (reqRes.ok) {
+      setOpenRequests(
+        (reqData.customOrders as CustomOrder[]).filter(
+          (o) => o.status === "en_attente" || o.status === "validee"
+        )
+      );
+    }
     setLoading(false);
+  }
+
+  function pendingFor(recipe: Recipe): { count: number; bottles: number } {
+    const matching = openRequests.filter((o) => findMatchingRecipe(o.recipe_name, recipes)?.id === recipe.id);
+    return { count: matching.length, bottles: matching.reduce((sum, o) => sum + o.quantity, 0) };
   }
 
   useEffect(() => {
@@ -215,6 +233,14 @@ export default function AdminRecipesPage() {
                     </p>
                   </button>
                 </div>
+              )}
+
+              {editingId !== recipe.id && pendingFor(recipe).count > 0 && (
+                <p className="mt-2 rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">
+                  ⚠ {pendingFor(recipe).count} demande{pendingFor(recipe).count > 1 ? "s" : ""} en attente pour ce
+                  goût ({pendingFor(recipe).bottles} bouteille{pendingFor(recipe).bottles > 1 ? "s" : ""}) : pense à
+                  les honorer (onglet Ventes) avant que la boutique ne les écoule.
+                </p>
               )}
 
               {editingId !== recipe.id && (

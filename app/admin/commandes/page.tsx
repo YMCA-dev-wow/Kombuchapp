@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CustomOrder } from "@/lib/types";
 
@@ -7,6 +8,7 @@ const statusLabel: Record<CustomOrder["status"], string> = {
   en_attente: "En attente",
   validee: "Validée",
   refusee: "Refusée",
+  honoree: "Honorée",
 };
 
 export default function AdminCommandesPage() {
@@ -71,6 +73,16 @@ export default function AdminCommandesPage() {
                   {statusLabel[order.status]}
                 </span>
               </div>
+
+              {order.status === "validee" && (
+                <p className="mt-3 text-xs text-muted">
+                  En attente de livraison :{" "}
+                  <Link href="/admin/ventes" className="text-accent underline">
+                    à honorer dans l&apos;onglet Ventes
+                  </Link>
+                  .
+                </p>
+              )}
 
               {order.status === "en_attente" && (
                 <div className="mt-3 flex gap-2">
