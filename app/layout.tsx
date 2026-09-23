@@ -1,11 +1,25 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Header } from "@/components/Header";
+import { InstallAppLink } from "@/components/InstallAppLink";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "YMCA Kombucha",
   description: "Commande ton kombucha maison directement en ligne.",
+  // Réglages pour l'appli installée sur iPhone (écran d'accueil).
+  appleWebApp: {
+    capable: true,
+    title: "YMCA Kombucha",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -30,6 +44,7 @@ export default function RootLayout({
           </a>
           <span className="px-2">&middot;</span>
           <Link href="/admin/login">Espace producteur</Link>
+          <InstallAppLink />
         </footer>
       </body>
     </html>

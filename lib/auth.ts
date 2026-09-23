@@ -25,13 +25,20 @@ if (!sessionSecret || sessionSecret.length < 32) {
   );
 }
 
+// Session producteur "quasi permanente" : 1 an, et prolongée
+// automatiquement à chaque visite de l'espace producteur (voir proxy.ts).
+// Tant que l'appli est ouverte au moins une fois par an, plus besoin de
+// retaper le mot de passe. Le bouton "Déconnexion" reste disponible.
+export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 365;
+
 export const sessionOptions: SessionOptions = {
   cookieName: "kombucha_admin_session",
   password: sessionSecret ?? "",
+  ttl: SESSION_TTL_SECONDS,
   cookieOptions: {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7, // 7 jours
+    maxAge: SESSION_TTL_SECONDS - 60,
   },
 };
 

@@ -138,6 +138,14 @@ Pour toute future modification du code : modifie les fichiers dans VS Code, puis
 - **Nouveau stock disponible** : sur le tableau de bord, un bouton permet de prévenir tous les amis inscrits (voir ci-dessous) qu'un nouveau stock est disponible — un simple email d'invitation à consulter la boutique, sans détail du contenu. Chaque email envoyé contient aussi un lien de désinscription individuel.
 - Le **Tableau de bord** te donne un coup d'œil rapide (nombre de recettes actives, demandes en attente) ainsi qu'une vue du stock actuel par parfum, avec les ruptures de stock repliées dans une section dépliable — le même principe que la page boutique côté client.
 
+### Installer l'appli sur ton téléphone
+
+Le site peut s'installer comme une appli (icône sur l'écran d'accueil, ouverture en plein écran), sans passer par l'App Store ni Google Play. Lien **"Télécharger l'application"** en pied de page :
+- **Android (Chrome)** : le lien ouvre directement la fenêtre d'installation.
+- **iPhone** : ouvre le site dans **Safari** → bouton **Partager** → **Sur l'écran d'accueil** (Apple ne permet pas d'autre méthode ; le lien affiche ces instructions).
+
+Pour l'espace producteur : ouvre l'appli installée, va dans "Espace producteur" et connecte-toi **une fois depuis l'appli** (sur iPhone, l'appli installée ne partage pas la connexion de Safari). La session dure 1 an et se prolonge à chaque ouverture : tu n'as plus à retaper ton mot de passe. Sur Android, un appui long sur l'icône propose aussi un raccourci direct "Espace producteur".
+
 ### S'inscrire aux alertes de nouveau stock
 
 Sur la boutique, tes amis peuvent laisser leur email dans un petit encart "Être prévenu(e) des nouveaux stocks". C'est cette liste qui reçoit l'invitation quand tu cliques sur "Prévenir du nouveau stock" dans le tableau de bord.
