@@ -2,19 +2,24 @@
 
 import { useEffect, useState } from "react";
 
-export function NotifyStockButton() {
-  const [count, setCount] = useState<number | null>(null);
+// Sans `subscriberIds` : diffusion à TOUS les abonnés (tableau de bord).
+// Avec `subscriberIds` : envoi ciblé aux seuls abonnés cochés (onglet Abonnés).
+export function NotifyStockButton({ subscriberIds }: { subscriberIds?: string[] } = {}) {
+  const targeted = subscriberIds !== undefined;
+  const [allCount, setAllCount] = useState<number | null>(null);
+  const count = targeted ? subscriberIds.length : allCount;
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    if (targeted) return;
     (async () => {
       const res = await fetch("/api/admin/notify-stock");
       const data = await res.json();
-      if (res.ok) setCount(data.count);
+      if (res.ok) setAllCount(data.count);
     })();
-  }, []);
+  }, [targeted]);
 
   async function handleSend() {
     if (count === 0) return;
@@ -29,7 +34,7 @@ export function NotifyStockButton() {
       const res = await fetch("/api/admin/notify-stock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: message.trim() || undefined }),
+        body: JSON.stringify({ message: message.trim() || undefined, subscriberIds }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -51,8 +56,19 @@ export function NotifyStockButton() {
       <p className="mt-1 text-xs text-muted">
         {count === null
           ? "Chargement..."
-          : `${count} abonné${count > 1 ? "s" : ""} recevront une invitation à consulter la boutique.`}
+          : targeted
+            ? `${count} abonné${count > 1 ? "s" : ""} sélectionné${count > 1 ? "s" : ""} pour cet envoi.`
+            : `${count} abonné${count > 1 ? "s" : ""} recevront une invitation à consulter la boutique.`}
       </p>
+      {!targeted && (
+        <p className="mt-1 text-xs text-muted">
+          Pour un envoi ciblé (ou un test), passe par l&apos;onglet{" "}
+          <a href="/admin/abonnes" className="text-accent underline">
+            Abonnés
+          </a>
+          .
+        </p>
+      )}
       <label htmlFor="notify-message" className="mt-3 block text-xs font-medium text-muted">
         Message personnalisé (optionnel)
       </label>

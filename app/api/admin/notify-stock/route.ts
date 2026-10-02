@@ -19,14 +19,25 @@ export async function GET() {
 // production pendant les vacances, etc.).
 export async function POST(request: NextRequest) {
   let message: string | undefined;
+  let subscriberIds: string[] | undefined;
   try {
     const body = await request.json();
     message = typeof body?.message === "string" ? body.message : undefined;
+    // Envoi ciblé (onglet Abonnés) : uniquement les abonnés cochés.
+    if (Array.isArray(body?.subscriberIds)) {
+      subscriberIds = body.subscriberIds.filter((id: unknown): id is string => typeof id === "string");
+    }
   } catch {
     // Corps vide ou invalide : on continue sans message personnalisé.
   }
 
-  const { data, error } = await supabaseAdmin.from("subscribers").select("email");
+  if (subscriberIds && subscriberIds.length === 0) {
+    return NextResponse.json({ error: "Aucun abonné sélectionné." }, { status: 400 });
+  }
+
+  let query = supabaseAdmin.from("subscribers").select("email");
+  if (subscriberIds) query = query.in("id", subscriberIds);
+  const { data, error } = await query;
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

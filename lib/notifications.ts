@@ -68,8 +68,31 @@ export interface NotificationChannel {
 // -----------------------------------------------------------------------
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
-const fromEmail = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
+const rawFromEmail = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
+// Nom d'expéditeur affiché ("YMCA Kombucha") plutôt qu'une adresse nue :
+// meilleur pour la confiance des destinataires ET pour les filtres anti-spam.
+const fromEmail = rawFromEmail.includes("<") ? rawFromEmail : `YMCA Kombucha <${rawFromEmail}>`;
 const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
+// Les réponses aux emails (envoyés depuis une adresse no-reply) arrivent
+// chez le producteur : un expéditeur joignable est mieux noté par Gmail.
+const replyTo = adminEmail || undefined;
+
+// Version texte brut générée à partir du HTML : un email "HTML seul" est
+// un signal négatif pour les filtres anti-spam.
+function htmlToText(html: string): string {
+  return html
+    .replace(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, "$2 : $1")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 type Message = { to: string; subject: string; html: string };
 
@@ -162,8 +185,10 @@ const emailChannel: NotificationChannel = {
           const { error } = await resend.emails.send({
             from: fromEmail,
             to: [message.to],
+            replyTo,
             subject: message.subject,
             html: message.html,
+            text: htmlToText(message.html),
           });
           if (error) {
             // On ne bloque jamais une commande à cause d'un email qui échoue,
@@ -255,17 +280,30 @@ export async function sendStockAvailableBroadcast(
   for (const batch of chunk(emails, BATCH_SIZE)) {
     try {
       const { error } = await resend.batch.send(
-        batch.map((email) => ({
-          from: fromEmail,
-          to: [email],
-          subject: "Nouveau stock de kombucha disponible !",
-          html: `<p>Du nouveau kombucha vient d'arriver en stock !</p>
+        batch.map((email) => {
+          const unsubUrl = unsubscribeUrl(email, siteUrl);
+          const html = `<p>Du nouveau kombucha vient d'arriver en stock !</p>
                  ${messageHtml}
                  <p><a href="${siteUrl}">Va jeter un œil à la boutique</a> avant qu'il n'y en ait plus.</p>
                  <p style="margin-top:24px;font-size:12px;color:#888888">
-                   <a href="${unsubscribeUrl(email, siteUrl)}">Se désinscrire de ces alertes</a>
-                 </p>`,
-        }))
+                   <a href="${unsubUrl}">Se désinscrire de ces alertes</a>
+                 </p>`;
+          return {
+            from: fromEmail,
+            to: [email],
+            replyTo,
+            subject: "Nouveau stock de kombucha disponible !",
+            html,
+            text: htmlToText(html),
+            // Désinscription "en un clic" (RFC 8058) exigée par Gmail/Yahoo
+            // pour les envois groupés : affiche leur propre bouton
+            // "Se désabonner" et évite le classement en spam.
+            headers: {
+              "List-Unsubscribe": `<${unsubUrl}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
+          };
+        })
       );
       if (error) {
         console.error("[notifications:email] échec de la diffusion", error);
