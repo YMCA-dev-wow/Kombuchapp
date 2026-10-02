@@ -73,9 +73,12 @@ const rawFromEmail = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
 // meilleur pour la confiance des destinataires ET pour les filtres anti-spam.
 const fromEmail = rawFromEmail.includes("<") ? rawFromEmail : `YMCA Kombucha <${rawFromEmail}>`;
 const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
-// Les réponses aux emails (envoyés depuis une adresse no-reply) arrivent
-// chez le producteur : un expéditeur joignable est mieux noté par Gmail.
-const replyTo = adminEmail || undefined;
+// Adresse de réponse OPTIONNELLE (variable RESEND_REPLY_TO). Elle doit être
+// sur le même domaine que l'expéditeur (ex: contact@ymcakombucha.com) :
+// un Reply-To vers une messagerie gratuite (Gmail...) alors que le mail
+// part d'un autre domaine est fortement pénalisé par les anti-spam
+// (règle SpamAssassin FREEMAIL_FORGED_REPLYTO, -2.5 points).
+const replyTo = process.env.RESEND_REPLY_TO || undefined;
 
 // Version texte brut générée à partir du HTML : un email "HTML seul" est
 // un signal négatif pour les filtres anti-spam.
