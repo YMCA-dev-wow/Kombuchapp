@@ -320,3 +320,47 @@ export async function sendStockAvailableBroadcast(
 
   return { sent };
 }
+
+// -----------------------------------------------------------------------
+// EMAIL DE BIENVENUE : envoyé une seule fois, juste après l'inscription
+// aux alertes. Le site invite la personne à vérifier qu'il est bien arrivé
+// en boîte principale ; si ce n'est pas le cas, le mail lui-même (et le
+// site) expliquent comment le sortir des spams / promotions. Les gestes
+// "non spam" et "ajout aux contacts" apprennent à sa messagerie à laisser
+// passer les futures alertes de stock.
+// -----------------------------------------------------------------------
+export async function sendWelcomeEmail(email: string, siteUrl: string): Promise<void> {
+  if (!resend) {
+    console.log("[notifications:email] RESEND_API_KEY absent, email de bienvenue ignoré.");
+    return;
+  }
+  const sender = rawFromEmail.replace(/^.*<|>$/g, "");
+  const unsubUrl = unsubscribeUrl(email, siteUrl);
+  const html = `<p>Bienvenue ! Ton inscription aux alertes de YMCA Kombucha est bien enregistrée.</p>
+                <p>Tu recevras un email à chaque arrivée de nouveau stock.</p>
+                <p><strong>Pour être sûr(e) de ne rien rater :</strong></p>
+                <p>1. Ajoute l'adresse ${sender} à tes contacts.<br>
+                   2. Si ce mail est arrivé dans tes <strong>spams</strong>, clique sur « Signaler comme non-spam ».<br>
+                   3. S'il est dans l'onglet <strong>Promotions</strong> de Gmail, fais-le glisser vers l'onglet <strong>Principale</strong> et accepte quand Gmail propose de le faire pour les prochains messages.</p>
+                <p><a href="${siteUrl}">Voir la boutique</a></p>
+                <p style="margin-top:24px;font-size:12px;color:#888888">
+                  <a href="${unsubUrl}">Se désinscrire de ces alertes</a>
+                </p>`;
+  try {
+    const { error } = await resend.emails.send({
+      from: fromEmail,
+      to: [email],
+      replyTo,
+      subject: "Bienvenue chez YMCA Kombucha",
+      html,
+      text: htmlToText(html),
+      headers: {
+        "List-Unsubscribe": `<${unsubUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+    if (error) console.error(`[notifications:email] échec du mail de bienvenue à ${email}:`, error);
+  } catch (err) {
+    console.error(`[notifications:email] échec du mail de bienvenue à ${email}:`, err);
+  }
+}
