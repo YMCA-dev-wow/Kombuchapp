@@ -173,8 +173,16 @@ export default function AdminSuiviPage() {
                       <Bar key={name} dataKey={name} stackId="total" fill={colorOf(name)} maxBarSize={36}>
                         {name === lastRecipe && (
                           <LabelList
-                            content={(props: { x?: number; y?: number; width?: number; index?: number }) => {
-                              const { x = 0, y = 0, width = 0, index = 0 } = props;
+                            content={(props: {
+                              x?: number | string;
+                              y?: number | string;
+                              width?: number | string;
+                              index?: number;
+                            }) => {
+                              const x = Number(props.x ?? 0);
+                              const y = Number(props.y ?? 0);
+                              const width = Number(props.width ?? 0);
+                              const index = props.index ?? 0;
                               const total = Number(series[index]?.Total ?? 0);
                               if (!total) return null;
                               return (
