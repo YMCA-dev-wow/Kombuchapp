@@ -364,3 +364,58 @@ export async function sendWelcomeEmail(email: string, siteUrl: string): Promise<
     console.error(`[notifications:email] échec du mail de bienvenue à ${email}:`, err);
   }
 }
+
+// -----------------------------------------------------------------------
+// FORMULAIRE DE CONTACT (page /contact)
+// - au producteur : le message, avec "Répondre" qui va directement à
+//   l'auteur (Reply-To = son adresse) ;
+// - à l'auteur : accusé de réception avec une copie de son message.
+// -----------------------------------------------------------------------
+export async function sendContactMessage(input: {
+  name: string;
+  email: string;
+  message: string;
+}): Promise<{ ok: boolean }> {
+  if (!resend || !adminEmail) {
+    console.log("[notifications:email] RESEND_API_KEY ou ADMIN_NOTIFICATION_EMAIL absent, message de contact ignoré.");
+    return { ok: false };
+  }
+  const name = escapeHtml(input.name);
+  const email = escapeHtml(input.email);
+  const messageHtml = `<p style="white-space:pre-line;border-left:3px solid #7a8450;padding-left:10px">${escapeHtml(input.message)}</p>`;
+
+  const adminHtml = `<p>Nouveau message de <strong>${name || "(nom non renseigné)"}</strong> (${email}) via le formulaire de contact :</p>
+                     ${messageHtml}
+                     <p>Clique sur « Répondre » pour lui écrire directement.</p>`;
+  const authorHtml = `<p>Bonjour${name ? ` ${name}` : ""},</p>
+                      <p>Ton message a bien été envoyé à YMCA Kombucha. Je te réponds dès que possible.</p>
+                      <p>Pour rappel, voici ce que tu as écrit :</p>
+                      ${messageHtml}`;
+
+  const toAdmin = await resend.emails.send({
+    from: fromEmail,
+    to: [adminEmail],
+    replyTo: input.email,
+    subject: `Message de contact : ${input.name || input.email}`,
+    html: adminHtml,
+    text: htmlToText(adminHtml),
+  });
+  if (toAdmin.error) {
+    console.error("[notifications:email] échec du message de contact (producteur):", toAdmin.error);
+    return { ok: false };
+  }
+
+  const toAuthor = await resend.emails.send({
+    from: fromEmail,
+    to: [input.email],
+    replyTo,
+    subject: "Ton message à YMCA Kombucha a bien été envoyé",
+    html: authorHtml,
+    text: htmlToText(authorHtml),
+  });
+  if (toAuthor.error) {
+    // Le producteur a bien reçu le message : on ne bloque pas pour l'accusé.
+    console.error(`[notifications:email] échec de l'accusé de réception à ${input.email}:`, toAuthor.error);
+  }
+  return { ok: true };
+}

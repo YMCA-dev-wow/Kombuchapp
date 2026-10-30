@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { StockList } from "@/components/StockList";
 import { SubscribeBox } from "@/components/SubscribeBox";
 
@@ -22,6 +23,13 @@ export default function HomePage() {
         <p className="mb-2 text-sm font-medium">Être prévenu(e) des nouveaux stocks</p>
         <SubscribeBox />
       </div>
+
+      <p className="text-center text-sm text-muted">
+        Une question, une remarque ?{" "}
+        <Link href="/contact" className="text-accent underline">
+          Écris-moi
+        </Link>
+      </p>
     </div>
   );
 }

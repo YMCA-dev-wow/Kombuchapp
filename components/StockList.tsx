@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type { Recipe } from "@/lib/types";
@@ -111,6 +112,20 @@ export function StockList() {
             <RecipeCard key={recipe.id} recipe={recipe} onOrder={setSelected} />
           ))
         )}
+      </div>
+
+      <div className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-sm">
+        <p className="font-medium">Ton goût préféré n&apos;est pas en stock ?</p>
+        <p className="mt-1 text-muted">
+          Qu&apos;il soit en rupture ou qu&apos;il n&apos;existe pas encore, fais une demande : je le prépare
+          spécialement pour toi.
+        </p>
+        <Link
+          href="/sur-commande"
+          className="mt-3 inline-block rounded-full bg-accent px-4 py-2 text-xs font-medium text-accent-foreground"
+        >
+          Commander sur demande →
+        </Link>
       </div>
 
       {outOfStock.length > 0 && (

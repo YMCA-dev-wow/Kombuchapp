@@ -43,6 +43,8 @@ export default function RootLayout({
             Décharge de responsabilité (PDF)
           </a>
           <span className="px-2">&middot;</span>
+          <Link href="/contact">Contact</Link>
+          <span className="px-2">&middot;</span>
           <Link href="/admin/login">Espace producteur</Link>
           <InstallAppLink />
         </footer>

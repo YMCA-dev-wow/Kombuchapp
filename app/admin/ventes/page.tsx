@@ -23,20 +23,57 @@ type EditableFields = {
   pickupStatus: "a_recuperer" | "recuperee";
 };
 
-type StatusFilter = "toutes" | "a_livrer" | "livree" | "a_recuperer" | "recuperee" | "vendu" | "donne" | "site" | "admin" | "sur_commande";
+// Filtres combinables : à l'intérieur d'un même groupe, une commande doit
+// correspondre à AU MOINS UNE option cochée (OU) ; entre groupes, elle doit
+// satisfaire TOUS les groupes actifs (ET). Ex : "À livrer" + "Vendues" =
+// commandes vendues pas encore livrées.
+type FilterKey =
+  | "a_livrer" | "livree"
+  | "a_recuperer" | "recuperee"
+  | "vendu" | "donne"
+  | "site" | "admin" | "sur_commande";
 
-const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
-  toutes: "Tous les statuts",
-  a_livrer: "À livrer",
-  livree: "Livrées",
-  a_recuperer: "À récupérer",
-  recuperee: "Récupérées",
-  vendu: "Vendues",
-  donne: "Offertes",
-  site: "Commande site",
-  admin: "Saisie manuelle",
-  sur_commande: "Sur commande",
-};
+const FILTER_GROUPS: { label: string; options: { key: FilterKey; label: string }[] }[] = [
+  { label: "Livraison", options: [{ key: "a_livrer", label: "À livrer" }, { key: "livree", label: "Livrées" }] },
+  { label: "Bouteille", options: [{ key: "a_recuperer", label: "À récupérer" }, { key: "recuperee", label: "Récupérées" }] },
+  { label: "Type", options: [{ key: "vendu", label: "Vendues" }, { key: "donne", label: "Offertes" }] },
+  {
+    label: "Origine",
+    options: [
+      { key: "site", label: "Site" },
+      { key: "admin", label: "Saisie manuelle" },
+      { key: "sur_commande", label: "Sur commande" },
+    ],
+  },
+];
+
+// Une bouteille ne peut être "à récupérer" (ou "récupérée") qu'une fois la
+// commande livrée : avant livraison, le statut bouteille n'a pas de sens.
+function effectivePickup(order: Pick<Order, "delivery_status" | "pickup_status">) {
+  return order.delivery_status === "livree" ? order.pickup_status : null;
+}
+
+function matchesKey(order: Order, key: FilterKey): boolean {
+  switch (key) {
+    case "a_livrer":
+    case "livree":
+      return order.delivery_status === key;
+    case "a_recuperer":
+    case "recuperee":
+      return effectivePickup(order) === key;
+    case "vendu":
+    case "donne":
+      return order.order_type === key;
+    case "site":
+    case "admin":
+    case "sur_commande":
+      return order.created_by === key;
+  }
+}
+
+function customerKey(name: string): string {
+  return name.trim().toLowerCase();
+}
 
 export default function AdminVentesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -56,7 +93,23 @@ export default function AdminVentesPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFields, setEditFields] = useState<EditableFields | null>(null);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("toutes");
+  const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set());
+  const [customerFilter, setCustomerFilter] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+
+  function toggleFilter(key: FilterKey) {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function resetFilters() {
+    setActiveFilters(new Set());
+    setCustomerFilter("");
+  }
 
   async function loadAll() {
     setLoading(true);
@@ -165,34 +218,28 @@ export default function AdminVentesPage() {
     setBusyId(null);
   }
 
-  function matchesFilter(order: Order): boolean {
-    switch (statusFilter) {
-      case "toutes":
-        return true;
-      case "a_livrer":
-      case "livree":
-        return order.delivery_status === statusFilter;
-      case "a_recuperer":
-      case "recuperee":
-        return order.pickup_status === statusFilter;
-      case "vendu":
-      case "donne":
-        return order.order_type === statusFilter;
-      case "site":
-      case "admin":
-      case "sur_commande":
-        return order.created_by === statusFilter;
-      default:
-        return true;
-    }
+  function matchesFilters(order: Order): boolean {
+    if (customerFilter && customerKey(order.customer_name) !== customerFilter) return false;
+    return FILTER_GROUPS.every((group) => {
+      const active = group.options.filter((o) => activeFilters.has(o.key));
+      return active.length === 0 || active.some((o) => matchesKey(order, o.key));
+    });
   }
 
-  // Ordre chronologique décroissant par défaut : l'API renvoie déjà les
-  // commandes triées ainsi, on le garantit aussi côté client (utile si la
-  // liste est un jour alimentée autrement).
+  // Liste des clients (sans doublons, insensible à la casse) pour le filtre.
+  const customers = Array.from(
+    new Map(orders.map((o): [string, string] => [customerKey(o.customer_name), o.customer_name.trim()])).entries()
+  ).sort((a, b) => a[1].localeCompare(b[1], "fr"));
+
+  const filtersActive = activeFilters.size > 0 || customerFilter !== "";
+
+  // Tri par date de la commande (la plus récente d'abord par défaut).
   const visibleOrders = orders
-    .filter(matchesFilter)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    .filter(matchesFilters)
+    .sort((a, b) => {
+      const diff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      return sortOrder === "desc" ? diff : -diff;
+    });
 
   return (
     <div className="space-y-5">
@@ -303,20 +350,66 @@ export default function AdminVentesPage() {
       <PendingCustomOrders recipes={recipes} onHonored={loadAll} />
 
       {orders.length > 0 && (
-        <div className="flex items-center justify-end gap-2 text-xs text-muted">
-          <label htmlFor="filter-statut">Filtrer par</label>
-          <select
-            id="filter-statut"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            className="rounded-lg border border-border bg-white px-2 py-1 text-xs"
-          >
-            {(Object.keys(STATUS_FILTER_LABELS) as StatusFilter[]).map((option) => (
-              <option key={option} value={option}>
-                {STATUS_FILTER_LABELS[option]}
-              </option>
-            ))}
-          </select>
+        <div className="space-y-3 rounded-xl border border-border bg-white/60 p-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="Trier par date"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as "desc" | "asc")}
+              className="rounded-lg border border-border bg-white px-2 py-1.5"
+            >
+              <option value="desc">Plus récentes d&apos;abord</option>
+              <option value="asc">Plus anciennes d&apos;abord</option>
+            </select>
+            <select
+              aria-label="Filtrer par client"
+              value={customerFilter}
+              onChange={(e) => setCustomerFilter(e.target.value)}
+              className="min-w-0 flex-1 rounded-lg border border-border bg-white px-2 py-1.5"
+            >
+              <option value="">Tous les clients</option>
+              {customers.map(([key, name]) => (
+                <option key={key} value={key}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {FILTER_GROUPS.map((group) => (
+            <div key={group.label} className="flex flex-wrap items-center gap-1.5">
+              <span className="w-16 shrink-0 text-muted">{group.label}</span>
+              {group.options.map((option) => {
+                const on = activeFilters.has(option.key);
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => toggleFilter(option.key)}
+                    aria-pressed={on}
+                    className={`rounded-full border px-2.5 py-1 ${
+                      on ? "border-accent bg-accent text-accent-foreground" : "border-border bg-white"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+
+          <div className="flex items-center justify-between text-muted">
+            <span>
+              {visibleOrders.length} commande{visibleOrders.length > 1 ? "s" : ""} ·{" "}
+              {visibleOrders.reduce((sum, o) => sum + o.quantity, 0)} bouteille
+              {visibleOrders.reduce((sum, o) => sum + o.quantity, 0) > 1 ? "s" : ""}
+            </span>
+            {filtersActive && (
+              <button type="button" onClick={resetFilters} className="underline">
+                Effacer les filtres
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -325,7 +418,7 @@ export default function AdminVentesPage() {
       ) : orders.length === 0 ? (
         <p className="text-sm text-muted">Aucune commande enregistrée pour le moment.</p>
       ) : visibleOrders.length === 0 ? (
-        <p className="text-sm text-muted">Aucune commande ne correspond à ce filtre.</p>
+        <p className="text-sm text-muted">Aucune commande ne correspond à ces filtres.</p>
       ) : (
         <div className="space-y-3">
           {visibleOrders.map((order) => (
@@ -388,24 +481,36 @@ export default function AdminVentesPage() {
                   <div className="flex gap-2">
                     <select
                       value={editFields.deliveryStatus}
-                      onChange={(e) =>
-                        setEditFields({ ...editFields, deliveryStatus: e.target.value as "a_livrer" | "livree" })
-                      }
+                      onChange={(e) => {
+                        const deliveryStatus = e.target.value as "a_livrer" | "livree";
+                        // Repasser en "à livrer" remet le statut bouteille à zéro.
+                        setEditFields({
+                          ...editFields,
+                          deliveryStatus,
+                          pickupStatus: deliveryStatus === "a_livrer" ? "a_recuperer" : editFields.pickupStatus,
+                        });
+                      }}
                       className="flex-1 rounded-lg border border-border bg-white px-2 py-2 text-sm"
                     >
                       <option value="a_livrer">À livrer</option>
                       <option value="livree">Livrée</option>
                     </select>
-                    <select
-                      value={editFields.pickupStatus}
-                      onChange={(e) =>
-                        setEditFields({ ...editFields, pickupStatus: e.target.value as "a_recuperer" | "recuperee" })
-                      }
-                      className="flex-1 rounded-lg border border-border bg-white px-2 py-2 text-sm"
-                    >
-                      <option value="a_recuperer">À récupérer</option>
-                      <option value="recuperee">Récupérée</option>
-                    </select>
+                    {editFields.deliveryStatus === "livree" ? (
+                      <select
+                        value={editFields.pickupStatus}
+                        onChange={(e) =>
+                          setEditFields({ ...editFields, pickupStatus: e.target.value as "a_recuperer" | "recuperee" })
+                        }
+                        className="flex-1 rounded-lg border border-border bg-white px-2 py-2 text-sm"
+                      >
+                        <option value="a_recuperer">Bouteille à récupérer</option>
+                        <option value="recuperee">Bouteille récupérée</option>
+                      </select>
+                    ) : (
+                      <span className="flex flex-1 items-center px-2 text-xs text-muted">
+                        Bouteille : après livraison
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -456,15 +561,17 @@ export default function AdminVentesPage() {
                       >
                         {order.delivery_status === "livree" ? "Livrée" : "À livrer"}
                       </span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] ${
-                          order.pickup_status === "recuperee"
-                            ? "bg-accent/20 text-accent"
-                            : "bg-muted/20 text-muted"
-                        }`}
-                      >
-                        {order.pickup_status === "recuperee" ? "Récupérée" : "À récupérer"}
-                      </span>
+                      {effectivePickup(order) && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[11px] ${
+                            effectivePickup(order) === "recuperee"
+                              ? "bg-accent/20 text-accent"
+                              : "bg-muted/20 text-muted"
+                          }`}
+                        >
+                          {effectivePickup(order) === "recuperee" ? "Bouteille récupérée" : "Bouteille à récupérer"}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-2">

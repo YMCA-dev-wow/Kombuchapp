@@ -35,6 +35,9 @@ export async function PATCH(
   if (body.unitAmount !== undefined && body.orderType !== "donne") update.unit_amount = body.unitAmount;
   if (body.deliveryStatus !== undefined) update.delivery_status = body.deliveryStatus;
   if (body.pickupStatus !== undefined) update.pickup_status = body.pickupStatus;
+  // Une bouteille pas encore livrée ne peut pas être "récupérée" : en
+  // repassant une commande "à livrer", on remet le statut bouteille à zéro.
+  if (body.deliveryStatus === "a_livrer") update.pickup_status = "a_recuperer";
 
   const { data, error } = await supabaseAdmin
     .from("orders")
