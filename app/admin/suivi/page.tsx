@@ -14,6 +14,7 @@ import {
 
 type Stats = {
   totalsByRecipe: { name: string; total: number }[];
+  totalsByCustomer: { name: string; total: number; recipes: { name: string; total: number }[] }[];
   weekly: Record<string, string | number>[];
   monthly: Record<string, string | number>[];
   recipeNames: string[];
@@ -69,6 +70,17 @@ export default function AdminSuiviPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("semaine");
+  // Clients dont le détail par goût est déplié.
+  const [openCustomers, setOpenCustomers] = useState<Set<string>>(new Set());
+
+  function toggleCustomer(name: string) {
+    setOpenCustomers((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
 
   useEffect(() => {
     (async () => {
@@ -93,6 +105,7 @@ export default function AdminSuiviPage() {
   const hasOrders = stats.totalsByRecipe.length > 0;
   const colorOf = (name: string) => COLORS[Math.max(0, stats.recipeNames.indexOf(name)) % COLORS.length];
   const maxTotal = Math.max(1, ...stats.totalsByRecipe.map((r) => r.total));
+  const maxCustomerTotal = Math.max(1, ...stats.totalsByCustomer.map((c) => c.total));
   const series = (period === "semaine" ? stats.weekly : stats.monthly).slice(-MAX_PERIODS);
   // Seuls les goûts présents sur la période affichée apparaissent (légende + barres).
   const visibleRecipes = stats.recipeNames.filter((name) => series.some((row) => Number(row[name] ?? 0) > 0));
@@ -139,6 +152,100 @@ export default function AdminSuiviPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Par client : une barre totale découpée par goût, puis un classement des
+              clients. Toucher un client déplie le détail de ses goûts. */}
+          <div>
+            <h2 className="mb-3 text-sm font-medium">Bouteilles commandées par client</h2>
+            <div className="space-y-3 rounded-xl border border-border bg-white/60 p-4">
+              <div>
+                <p className="mb-1.5 text-xs">
+                  <span className="text-lg font-semibold">{stats.totalSoldOrGiven}</span> bouteilles commandées
+                  {stats.totalProduced > 0 && (
+                    <span className="text-muted">
+                      {" "}
+                      · {Math.round((stats.totalSoldOrGiven / stats.totalProduced) * 100)} % des {stats.totalProduced} produites
+                    </span>
+                  )}
+                </p>
+                <div className="flex h-3 overflow-hidden rounded-full bg-border/60">
+                  {stats.totalsByRecipe.map((r) => (
+                    <div
+                      key={r.name}
+                      title={`${r.name} : ${r.total}`}
+                      style={{ width: `${(r.total / stats.totalSoldOrGiven) * 100}%`, background: colorOf(r.name) }}
+                    />
+                  ))}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+                  {stats.totalsByRecipe.map((r) => (
+                    <span key={r.name} className="flex items-center gap-1.5">
+                      <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colorOf(r.name) }} />
+                      {r.name} ({r.total})
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1 border-t border-border pt-3">
+                {stats.totalsByCustomer.map((c) => {
+                  const open = openCustomers.has(c.name);
+                  return (
+                    <div key={c.name}>
+                      <button
+                        type="button"
+                        onClick={() => toggleCustomer(c.name)}
+                        aria-expanded={open}
+                        className="block w-full py-1 text-left"
+                      >
+                        <div className="mb-1 flex justify-between gap-2 text-xs">
+                          <span className="min-w-0 truncate">
+                            <span className="text-muted">{open ? "▾" : "▸"}</span> {c.name}
+                          </span>
+                          <span className="shrink-0 font-medium">
+                            {c.total}{" "}
+                            <span className="font-normal text-muted">
+                              ({Math.round((c.total / stats.totalSoldOrGiven) * 100)} %)
+                            </span>
+                          </span>
+                        </div>
+                        <div className="flex h-2.5 rounded-full bg-border/60">
+                          <div
+                            className="flex h-2.5 overflow-hidden rounded-full"
+                            style={{ width: `${(c.total / maxCustomerTotal) * 100}%` }}
+                          >
+                            {c.recipes.map((r) => (
+                              <div
+                                key={r.name}
+                                style={{ width: `${(r.total / c.total) * 100}%`, background: colorOf(r.name) }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </button>
+                      {open && (
+                        <ul className="mb-1 ml-4 mt-1 space-y-0.5 text-xs">
+                          {c.recipes.map((r) => (
+                            <li key={r.name} className="flex items-center justify-between gap-2">
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span
+                                  className="inline-block h-2 w-2 shrink-0 rounded-full"
+                                  style={{ background: colorOf(r.name) }}
+                                />
+                                <span className="truncate">{r.name}</span>
+                              </span>
+                              <span className="shrink-0">{r.total}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted">Touche un client pour voir le détail par goût.</p>
             </div>
           </div>
 

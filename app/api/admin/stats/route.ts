@@ -20,6 +20,7 @@ function getMonthLabel(date: Date): string {
 }
 
 type Row = {
+  customer_name: string | null;
   recipe_name_snapshot: string;
   quantity: number;
   created_at: string;
@@ -62,7 +63,7 @@ export async function GET() {
   const [{ data, error }, { data: recipesData, error: recipesError }] = await Promise.all([
     supabaseAdmin
       .from("orders")
-      .select("recipe_name_snapshot, quantity, created_at, order_type, unit_amount")
+      .select("customer_name, recipe_name_snapshot, quantity, created_at, order_type, unit_amount")
       .eq("status", "confirmee")
       .order("created_at", { ascending: true }),
     supabaseAdmin.from("recipes").select("quantity"),
@@ -91,6 +92,26 @@ export async function GET() {
     .map(([name, total]) => ({ name, total }))
     .sort((a, b) => b.total - a.total);
 
+  // Par client (regroupés sans tenir compte de la casse), avec le détail par goût.
+  const customersMap = new Map<string, { name: string; total: number; recipes: Map<string, number> }>();
+  for (const row of rows) {
+    const name = (row.customer_name ?? "").trim() || "Client inconnu";
+    const key = name.toLowerCase();
+    const entry = customersMap.get(key) ?? { name, total: 0, recipes: new Map<string, number>() };
+    entry.total += row.quantity;
+    entry.recipes.set(row.recipe_name_snapshot, (entry.recipes.get(row.recipe_name_snapshot) ?? 0) + row.quantity);
+    customersMap.set(key, entry);
+  }
+  const totalsByCustomer = Array.from(customersMap.values())
+    .map((c) => ({
+      name: c.name,
+      total: c.total,
+      recipes: Array.from(c.recipes.entries())
+        .map(([recipe, total]) => ({ name: recipe, total }))
+        .sort((a, b) => b.total - a.total),
+    }))
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "fr"));
+
   const currentStock = (recipesData ?? []).reduce((sum, r) => sum + (r.quantity ?? 0), 0);
 
   const weekly = aggregateByPeriod(rows, getISOWeekLabel);
@@ -98,6 +119,7 @@ export async function GET() {
 
   return NextResponse.json({
     totalsByRecipe,
+    totalsByCustomer,
     weekly: weekly.series,
     monthly: monthly.series,
     recipeNames: Array.from(new Set([...weekly.recipeNames, ...monthly.recipeNames])),

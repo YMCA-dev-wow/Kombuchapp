@@ -94,8 +94,19 @@ export default function AdminVentesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFields, setEditFields] = useState<EditableFields | null>(null);
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set());
-  const [customerFilter, setCustomerFilter] = useState<string>("");
+  // Clients cochés (plusieurs possibles) ; vide = tous les clients.
+  const [customerFilter, setCustomerFilter] = useState<Set<string>>(new Set());
+  const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+
+  function toggleCustomer(key: string) {
+    setCustomerFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   function toggleFilter(key: FilterKey) {
     setActiveFilters((prev) => {
@@ -108,7 +119,7 @@ export default function AdminVentesPage() {
 
   function resetFilters() {
     setActiveFilters(new Set());
-    setCustomerFilter("");
+    setCustomerFilter(new Set());
   }
 
   async function loadAll() {
@@ -219,7 +230,7 @@ export default function AdminVentesPage() {
   }
 
   function matchesFilters(order: Order): boolean {
-    if (customerFilter && customerKey(order.customer_name) !== customerFilter) return false;
+    if (customerFilter.size > 0 && !customerFilter.has(customerKey(order.customer_name))) return false;
     return FILTER_GROUPS.every((group) => {
       const active = group.options.filter((o) => activeFilters.has(o.key));
       return active.length === 0 || active.some((o) => matchesKey(order, o.key));
@@ -231,7 +242,7 @@ export default function AdminVentesPage() {
     new Map(orders.map((o): [string, string] => [customerKey(o.customer_name), o.customer_name.trim()])).entries()
   ).sort((a, b) => a[1].localeCompare(b[1], "fr"));
 
-  const filtersActive = activeFilters.size > 0 || customerFilter !== "";
+  const filtersActive = activeFilters.size > 0 || customerFilter.size > 0;
 
   // Tri par date de la commande (la plus récente d'abord par défaut).
   const visibleOrders = orders
@@ -361,20 +372,31 @@ export default function AdminVentesPage() {
               <option value="desc">Plus récentes d&apos;abord</option>
               <option value="asc">Plus anciennes d&apos;abord</option>
             </select>
-            <select
-              aria-label="Filtrer par client"
-              value={customerFilter}
-              onChange={(e) => setCustomerFilter(e.target.value)}
-              className="min-w-0 flex-1 rounded-lg border border-border bg-white px-2 py-1.5"
+            <button
+              type="button"
+              onClick={() => setShowCustomerPicker((v) => !v)}
+              aria-expanded={showCustomerPicker}
+              className={`min-w-0 flex-1 truncate rounded-lg border px-2 py-1.5 text-left ${
+                customerFilter.size > 0 ? "border-accent bg-accent/10" : "border-border bg-white"
+              }`}
             >
-              <option value="">Tous les clients</option>
-              {customers.map(([key, name]) => (
-                <option key={key} value={key}>
-                  {name}
-                </option>
-              ))}
-            </select>
+              {customerFilter.size === 0
+                ? "Tous les clients"
+                : `${customerFilter.size} client${customerFilter.size > 1 ? "s" : ""} sélectionné${customerFilter.size > 1 ? "s" : ""}`}{" "}
+              {showCustomerPicker ? "▴" : "▾"}
+            </button>
           </div>
+
+          {showCustomerPicker && (
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-border bg-white p-2">
+              {customers.map(([key, name]) => (
+                <label key={key} className="flex items-center gap-2 py-1">
+                  <input type="checkbox" checked={customerFilter.has(key)} onChange={() => toggleCustomer(key)} />
+                  <span className="min-w-0 truncate">{name}</span>
+                </label>
+              ))}
+            </div>
+          )}
 
           {FILTER_GROUPS.map((group) => (
             <div key={group.label} className="flex flex-wrap items-center gap-1.5">
