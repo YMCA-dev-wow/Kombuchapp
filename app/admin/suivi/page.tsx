@@ -30,6 +30,8 @@ type Period = "semaine" | "mois";
 const COLORS = ["#7a8450", "#b3452f", "#4a7a8a", "#c9a227", "#8a5a8a", "#5a8a6a", "#a26b3f", "#3f5f8a"];
 // Nombre de périodes affichées (les plus récentes) pour rester lisible sur mobile.
 const MAX_PERIODS = 12;
+// Nombre de clients affichés avant « Voir les autres clients ».
+const CUSTOMERS_PREVIEW = 10;
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
 function formatEuros(amount: number): string {
@@ -72,6 +74,7 @@ export default function AdminSuiviPage() {
   const [period, setPeriod] = useState<Period>("semaine");
   // Clients dont le détail par goût est déplié.
   const [openCustomers, setOpenCustomers] = useState<Set<string>>(new Set());
+  const [showAllCustomers, setShowAllCustomers] = useState(false);
 
   function toggleCustomer(name: string) {
     setOpenCustomers((prev) => {
@@ -105,7 +108,8 @@ export default function AdminSuiviPage() {
   const hasOrders = stats.totalsByRecipe.length > 0;
   const colorOf = (name: string) => COLORS[Math.max(0, stats.recipeNames.indexOf(name)) % COLORS.length];
   const maxTotal = Math.max(1, ...stats.totalsByRecipe.map((r) => r.total));
-  const maxCustomerTotal = Math.max(1, ...stats.totalsByCustomer.map((c) => c.total));
+  const visibleCustomers = showAllCustomers ? stats.totalsByCustomer : stats.totalsByCustomer.slice(0, CUSTOMERS_PREVIEW);
+  const maxCustomerTotal =Math.max(1, ...stats.totalsByCustomer.map((c) => c.total));
   const series = (period === "semaine" ? stats.weekly : stats.monthly).slice(-MAX_PERIODS);
   // Seuls les goûts présents sur la période affichée apparaissent (légende + barres).
   const visibleRecipes = stats.recipeNames.filter((name) => series.some((row) => Number(row[name] ?? 0) > 0));
@@ -155,42 +159,13 @@ export default function AdminSuiviPage() {
             </div>
           </div>
 
-          {/* Par client : une barre totale découpée par goût, puis un classement des
-              clients. Toucher un client déplie le détail de ses goûts. */}
+          {/* Par client : classement (10 premiers, le reste se déplie), chaque barre
+              découpée par goût. Toucher un client déplie le détail de ses goûts. */}
           <div>
             <h2 className="mb-3 text-sm font-medium">Bouteilles commandées par client</h2>
             <div className="space-y-3 rounded-xl border border-border bg-white/60 p-4">
-              <div>
-                <p className="mb-1.5 text-xs">
-                  <span className="text-lg font-semibold">{stats.totalSoldOrGiven}</span> bouteilles commandées
-                  {stats.totalProduced > 0 && (
-                    <span className="text-muted">
-                      {" "}
-                      · {Math.round((stats.totalSoldOrGiven / stats.totalProduced) * 100)} % des {stats.totalProduced} produites
-                    </span>
-                  )}
-                </p>
-                <div className="flex h-3 overflow-hidden rounded-full bg-border/60">
-                  {stats.totalsByRecipe.map((r) => (
-                    <div
-                      key={r.name}
-                      title={`${r.name} : ${r.total}`}
-                      style={{ width: `${(r.total / stats.totalSoldOrGiven) * 100}%`, background: colorOf(r.name) }}
-                    />
-                  ))}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
-                  {stats.totalsByRecipe.map((r) => (
-                    <span key={r.name} className="flex items-center gap-1.5">
-                      <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colorOf(r.name) }} />
-                      {r.name} ({r.total})
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-1 border-t border-border pt-3">
-                {stats.totalsByCustomer.map((c) => {
+              <div className="space-y-1">
+                {visibleCustomers.map((c) => {
                   const open = openCustomers.has(c.name);
                   return (
                     <div key={c.name}>
@@ -244,6 +219,26 @@ export default function AdminSuiviPage() {
                     </div>
                   );
                 })}
+              </div>
+              {stats.totalsByCustomer.length > CUSTOMERS_PREVIEW && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllCustomers((v) => !v)}
+                  aria-expanded={showAllCustomers}
+                  className="flex w-full items-center justify-center gap-1 rounded-full border border-border bg-white py-1.5 text-xs"
+                >
+                  {showAllCustomers
+                    ? "Réduire ▴"
+                    : `Voir les ${stats.totalsByCustomer.length - CUSTOMERS_PREVIEW} autres clients ▾`}
+                </button>
+              )}
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+                {stats.totalsByRecipe.map((r) => (
+                  <span key={r.name} className="flex items-center gap-1.5">
+                    <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colorOf(r.name) }} />
+                    {r.name}
+                  </span>
+                ))}
               </div>
               <p className="text-[11px] text-muted">Touche un client pour voir le détail par goût.</p>
             </div>

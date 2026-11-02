@@ -389,6 +389,16 @@ export default function AdminVentesPage() {
 
           {showCustomerPicker && (
             <div className="max-h-48 overflow-y-auto rounded-lg border border-border bg-white p-2">
+              <button
+                type="button"
+                onClick={() => setCustomerFilter(new Set())}
+                aria-pressed={customerFilter.size === 0}
+                className={`mb-1 w-full rounded-full border px-2.5 py-1 text-left ${
+                  customerFilter.size === 0 ? "border-accent bg-accent text-accent-foreground" : "border-border bg-white"
+                }`}
+              >
+                Tous les clients
+              </button>
               {customers.map(([key, name]) => (
                 <label key={key} className="flex items-center gap-2 py-1">
                   <input type="checkbox" checked={customerFilter.has(key)} onChange={() => toggleCustomer(key)} />
