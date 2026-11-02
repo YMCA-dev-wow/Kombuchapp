@@ -264,6 +264,14 @@ export default function AdminVentesPage() {
         </button>
       </div>
 
+      {/* Suggestions de noms (clients déjà vus dans les commandes), partagées par le
+          formulaire d'ajout et la modification d'une commande existante. */}
+      <datalist id="customer-suggestions">
+        {customers.map(([key, name]) => (
+          <option key={key} value={name} />
+        ))}
+      </datalist>
+
       {showForm && (
         <form onSubmit={handleCreate} className="space-y-3 rounded-xl border border-border bg-white/60 p-4">
           <div>
@@ -319,6 +327,8 @@ export default function AdminVentesPage() {
             <input
               value={formCustomerName}
               onChange={(e) => setFormCustomerName(e.target.value)}
+              list="customer-suggestions"
+              autoComplete="off"
               required
               className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
             />
@@ -473,6 +483,8 @@ export default function AdminVentesPage() {
                     <input
                       value={editFields.customerName}
                       onChange={(e) => setEditFields({ ...editFields, customerName: e.target.value })}
+                      list="customer-suggestions"
+                      autoComplete="off"
                       className="flex-1 rounded-lg border border-border bg-white px-3 py-2 text-sm"
                     />
                     <input
