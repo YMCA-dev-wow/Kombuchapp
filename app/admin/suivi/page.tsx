@@ -12,9 +12,20 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+type CustomerTotal = { name: string; total: number; recipes: { name: string; total: number }[] };
+// Filtre du graphe par client : toutes les bouteilles, seulement les vendues ou les offertes.
+type CustomerScope = "tous" | "vendu" | "donne";
+
+const SCOPE_OPTIONS: { key: CustomerScope; label: string }[] = [
+  { key: "tous", label: "Toutes" },
+  { key: "vendu", label: "Vendues" },
+  { key: "donne", label: "Offertes" },
+];
+const SCOPE_STORAGE_KEY = "suivi-clients-scope";
+
 type Stats = {
   totalsByRecipe: { name: string; total: number }[];
-  totalsByCustomer: { name: string; total: number; recipes: { name: string; total: number }[] }[];
+  totalsByCustomer: Record<CustomerScope, CustomerTotal[]>;
   weekly: Record<string, string | number>[];
   monthly: Record<string, string | number>[];
   recipeNames: string[];
@@ -75,6 +86,25 @@ export default function AdminSuiviPage() {
   // Clients dont le détail par goût est déplié.
   const [openCustomers, setOpenCustomers] = useState<Set<string>>(new Set());
   const [showAllCustomers, setShowAllCustomers] = useState(false);
+  // Dernier filtre choisi, retenu d'une visite à l'autre sur cet appareil.
+  const [scope, setScope] = useState<CustomerScope>(() => {
+    try {
+      const saved = typeof window !== "undefined" ? window.localStorage.getItem(SCOPE_STORAGE_KEY) : null;
+      return SCOPE_OPTIONS.some((o) => o.key === saved) ? (saved as CustomerScope) : "tous";
+    } catch {
+      return "tous";
+    }
+  });
+
+  function changeScope(next: CustomerScope) {
+    setScope(next);
+    setShowAllCustomers(false);
+    try {
+      window.localStorage.setItem(SCOPE_STORAGE_KEY, next);
+    } catch {
+      // Stockage indisponible (navigation privée…) : le choix ne sera juste pas retenu.
+    }
+  }
 
   function toggleCustomer(name: string) {
     setOpenCustomers((prev) => {
@@ -108,8 +138,12 @@ export default function AdminSuiviPage() {
   const hasOrders = stats.totalsByRecipe.length > 0;
   const colorOf = (name: string) => COLORS[Math.max(0, stats.recipeNames.indexOf(name)) % COLORS.length];
   const maxTotal = Math.max(1, ...stats.totalsByRecipe.map((r) => r.total));
-  const visibleCustomers = showAllCustomers ? stats.totalsByCustomer : stats.totalsByCustomer.slice(0, CUSTOMERS_PREVIEW);
-  const maxCustomerTotal =Math.max(1, ...stats.totalsByCustomer.map((c) => c.total));
+  const customers = stats.totalsByCustomer[scope];
+  const customersTotal = customers.reduce((sum, c) => sum + c.total, 0);
+  const visibleCustomers = showAllCustomers ? customers : customers.slice(0, CUSTOMERS_PREVIEW);
+  const maxCustomerTotal = Math.max(1, ...customers.map((c) => c.total));
+  // Goûts présents dans le filtre choisi (légende des couleurs).
+  const customerRecipes = Array.from(new Set(customers.flatMap((c) => c.recipes.map((r) => r.name))));
   const series = (period === "semaine" ? stats.weekly : stats.monthly).slice(-MAX_PERIODS);
   // Seuls les goûts présents sur la période affichée apparaissent (légende + barres).
   const visibleRecipes = stats.recipeNames.filter((name) => series.some((row) => Number(row[name] ?? 0) > 0));
@@ -162,8 +196,24 @@ export default function AdminSuiviPage() {
           {/* Par client : classement (10 premiers, le reste se déplie), chaque barre
               découpée par goût. Toucher un client déplie le détail de ses goûts. */}
           <div>
-            <h2 className="mb-3 text-sm font-medium">Bouteilles commandées par client</h2>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-medium">Bouteilles commandées par client</h2>
+              <div className="flex shrink-0 rounded-full border border-border bg-white p-0.5 text-xs">
+                {SCOPE_OPTIONS.map((o) => (
+                  <button
+                    key={o.key}
+                    type="button"
+                    onClick={() => changeScope(o.key)}
+                    aria-pressed={scope === o.key}
+                    className={`rounded-full px-3 py-1 ${scope === o.key ? "bg-accent text-accent-foreground" : ""}`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="space-y-3 rounded-xl border border-border bg-white/60 p-4">
+              {customers.length === 0 && <p className="text-xs text-muted">Aucune bouteille dans cette catégorie.</p>}
               <div className="space-y-1">
                 {visibleCustomers.map((c) => {
                   const open = openCustomers.has(c.name);
@@ -182,7 +232,7 @@ export default function AdminSuiviPage() {
                           <span className="shrink-0 font-medium">
                             {c.total}{" "}
                             <span className="font-normal text-muted">
-                              ({Math.round((c.total / stats.totalSoldOrGiven) * 100)} %)
+                              ({Math.round((c.total / customersTotal) * 100)} %)
                             </span>
                           </span>
                         </div>
@@ -220,7 +270,7 @@ export default function AdminSuiviPage() {
                   );
                 })}
               </div>
-              {stats.totalsByCustomer.length > CUSTOMERS_PREVIEW && (
+              {customers.length > CUSTOMERS_PREVIEW && (
                 <button
                   type="button"
                   onClick={() => setShowAllCustomers((v) => !v)}
@@ -229,14 +279,14 @@ export default function AdminSuiviPage() {
                 >
                   {showAllCustomers
                     ? "Réduire ▴"
-                    : `Voir les ${stats.totalsByCustomer.length - CUSTOMERS_PREVIEW} autres clients ▾`}
+                    : `Voir les ${customers.length - CUSTOMERS_PREVIEW} autres clients ▾`}
                 </button>
               )}
               <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
-                {stats.totalsByRecipe.map((r) => (
-                  <span key={r.name} className="flex items-center gap-1.5">
-                    <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colorOf(r.name) }} />
-                    {r.name}
+                {customerRecipes.map((name) => (
+                  <span key={name} className="flex items-center gap-1.5">
+                    <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colorOf(name) }} />
+                    {name}
                   </span>
                 ))}
               </div>
