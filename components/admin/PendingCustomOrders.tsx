@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { CustomOrder, Recipe } from "@/lib/types";
+import type { CustomOrder, Order, Recipe } from "@/lib/types";
 import { findMatchingRecipe } from "@/lib/matchRecipe";
 
 type RowSettings = {
@@ -10,14 +10,26 @@ type RowSettings = {
   unitAmount: number | "";
 };
 
-// Zone tampon de l'onglet Ventes : demandes "sur commande" validées mais
-// pas encore livrées. Chacune peut être honorée depuis le stock (si le
-// stock suffit) ou en "production dédiée" (sans toucher au stock).
+const ORIGIN_LABELS: Record<Order["created_by"], string> = {
+  site: "Site",
+  admin: "Saisie manuelle",
+  sur_commande: "Sur commande",
+};
+
+// Zone « À honorer » de l'onglet Ventes. Elle regroupe :
+// - les demandes "sur commande" validées, pas encore transformées en vente
+//   (honorées depuis le stock si le stock suffit, ou en "production dédiée"
+//   sans toucher au stock) ;
+// - toutes les commandes déjà enregistrées mais pas encore livrées, quelle
+//   que soit leur origine (site, saisie manuelle, sur commande) : le stock a
+//   déjà été décompté, il ne reste qu'à les marquer comme livrées.
 export function PendingCustomOrders({
   recipes,
+  toDeliver,
   onHonored,
 }: {
   recipes: Recipe[];
+  toDeliver: Order[];
   onHonored: () => Promise<void> | void;
 }) {
   const [requests, setRequests] = useState<CustomOrder[]>([]);
@@ -82,16 +94,42 @@ export function PendingCustomOrders({
     setBusyId(null);
   }
 
-  if (requests.length === 0) return null;
+  async function handleDelivered(order: Order) {
+    setBusyId(order.id);
+    setErrors((prev) => ({ ...prev, [order.id]: "" }));
+    const res = await fetch(`/api/admin/orders/${order.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deliveryStatus: "livree" }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setErrors((prev) => ({ ...prev, [order.id]: data.error ?? "Erreur lors de l'opération." }));
+    } else {
+      await onHonored();
+    }
+    setBusyId(null);
+  }
+
+  if (requests.length === 0 && toDeliver.length === 0) return null;
+
+  // Les plus anciennes d'abord : ce sont celles qui attendent depuis le plus longtemps.
+  const deliveries = [...toDeliver].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
 
   return (
     <div className="space-y-3 rounded-xl border border-accent/40 bg-accent/5 p-4">
       <div>
-        <p className="text-sm font-medium">À honorer ({requests.length})</p>
+        <p className="text-sm font-medium">À honorer ({requests.length + toDeliver.length})</p>
         <p className="text-xs text-muted">
-          Demandes « sur commande » validées, pas encore transformées en vente.
+          Demandes « sur commande » validées à transformer en vente, et commandes à livrer.
         </p>
       </div>
+
+      {requests.length > 0 && (
+        <p className="text-xs font-medium">Demandes à honorer ({requests.length})</p>
+      )}
 
       {requests.map((request) => {
         const s = getSettings(request);
@@ -178,6 +216,35 @@ export function PendingCustomOrders({
           </div>
         );
       })}
+
+      {deliveries.length > 0 && (
+        <p className="text-xs font-medium">Commandes à livrer ({deliveries.length})</p>
+      )}
+
+      {deliveries.map((order) => (
+        <div key={order.id} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
+          <div>
+            <p className="font-medium">
+              {order.recipe_name_snapshot} × {order.quantity}
+            </p>
+            <p className="text-xs text-muted">
+              {order.customer_name} · {ORIGIN_LABELS[order.created_by]} ·{" "}
+              {order.order_type === "donne"
+                ? "offerte"
+                : `vendue${order.unit_amount != null ? ` ${Number(order.unit_amount).toLocaleString("fr-FR")} EUR` : ""}`}{" "}
+              · le {new Date(order.created_at).toLocaleDateString("fr-FR")}
+            </p>
+          </div>
+          {errors[order.id] && <p className="text-xs text-danger">{errors[order.id]}</p>}
+          <button
+            onClick={() => handleDelivered(order)}
+            disabled={busyId === order.id}
+            className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
+          >
+            Marquer comme livrée
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

@@ -8,7 +8,13 @@ import { NotifyStockButton } from "@/components/admin/NotifyStockButton";
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
-  const [{ count: recipesCount }, { count: pendingCount }, { data: activeRecipes }, { count: toHonorCount }] = await Promise.all([
+  const [
+    { count: recipesCount },
+    { count: pendingCount },
+    { data: activeRecipes },
+    { count: customToHonorCount },
+    { count: toDeliverCount },
+  ] = await Promise.all([
     supabaseAdmin.from("recipes").select("*", { count: "exact", head: true }).eq("active", true),
     supabaseAdmin
       .from("custom_orders")
@@ -23,7 +29,16 @@ export default async function AdminDashboardPage() {
       .from("custom_orders")
       .select("*", { count: "exact", head: true })
       .eq("status", "validee"),
+    // Commandes déjà enregistrées mais pas encore livrées (toutes origines).
+    supabaseAdmin
+      .from("orders")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "confirmee")
+      .eq("delivery_status", "a_livrer"),
   ]);
+
+  // Même compteur que la zone « À honorer » de l'onglet Ventes.
+  const toHonorCount = (customToHonorCount ?? 0) + (toDeliverCount ?? 0);
 
   const inStock = (activeRecipes ?? []).filter((r) => r.quantity > 0);
   const outOfStock = (activeRecipes ?? []).filter((r) => r.quantity <= 0);
@@ -47,13 +62,13 @@ export default async function AdminDashboardPage() {
           <p className="text-2xl font-semibold">{pendingCount ?? 0}</p>
           <p className="text-sm text-muted">demandes en attente</p>
         </Link>
-        {(toHonorCount ?? 0) > 0 && (
+        {toHonorCount > 0 && (
           <Link
             href="/admin/ventes"
             className="col-span-2 rounded-xl border border-accent/40 bg-accent/5 p-4"
           >
             <p className="text-2xl font-semibold">{toHonorCount}</p>
-            <p className="text-sm text-muted">demande{(toHonorCount ?? 0) > 1 ? "s" : ""} validée{(toHonorCount ?? 0) > 1 ? "s" : ""} à honorer</p>
+            <p className="text-sm text-muted">à honorer ou à livrer</p>
           </Link>
         )}
       </div>

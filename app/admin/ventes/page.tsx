@@ -368,7 +368,11 @@ export default function AdminVentesPage() {
         </form>
       )}
 
-      <PendingCustomOrders recipes={recipes} onHonored={loadAll} />
+      <PendingCustomOrders
+        recipes={recipes}
+        toDeliver={orders.filter((o) => o.status === "confirmee" && o.delivery_status === "a_livrer")}
+        onHonored={loadAll}
+      />
 
       {orders.length > 0 && (
         <div className="space-y-3 rounded-xl border border-border bg-white/60 p-3 text-xs">
