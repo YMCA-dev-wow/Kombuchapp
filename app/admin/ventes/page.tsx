@@ -97,6 +97,18 @@ export default function AdminVentesPage() {
   // Clients cochés (plusieurs possibles) ; vide = tous les clients.
   const [customerFilter, setCustomerFilter] = useState<Set<string>>(new Set());
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  // Commandes cochées pour une modification groupée.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   function toggleCustomer(key: string) {
@@ -251,6 +263,61 @@ export default function AdminVentesPage() {
       const diff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       return sortOrder === "desc" ? diff : -diff;
     });
+
+  // Seules les commandes cochées ET affichées sont modifiées : un filtre qui
+  // cache une commande cochée ne doit jamais la laisser modifier par surprise.
+  const selectedVisible = visibleOrders.filter((o) => selectedIds.has(o.id));
+
+  type BulkAction = "livree" | "a_livrer" | "recuperee" | "a_recuperer";
+
+  const BULK_ACTIONS: { key: BulkAction; label: string }[] = [
+    { key: "livree", label: "Marquer livrées" },
+    { key: "a_livrer", label: "Remettre à livrer" },
+    { key: "recuperee", label: "Bouteilles récupérées" },
+    { key: "a_recuperer", label: "Bouteilles à récupérer" },
+  ];
+
+  // Applique la même modification à toutes les commandes cochées. Le statut
+  // bouteille n'a de sens qu'après livraison : les commandes pas encore
+  // livrées sont ignorées pour les actions "bouteille".
+  async function handleBulk(action: BulkAction) {
+    const isDeliveryAction = action === "livree" || action === "a_livrer";
+    const targets = selectedVisible.filter((o) => {
+      if (action === "livree") return o.delivery_status !== "livree";
+      if (action === "a_livrer") return o.delivery_status !== "a_livrer";
+      return o.delivery_status === "livree" && o.pickup_status !== action;
+    });
+    const skipped = selectedVisible.length - targets.length;
+    if (targets.length === 0) {
+      window.alert(
+        isDeliveryAction
+          ? "Les commandes cochées sont déjà dans cet état."
+          : "Rien à modifier : les commandes cochées sont déjà dans cet état, ou pas encore livrées."
+      );
+      return;
+    }
+    const label = BULK_ACTIONS.find((a) => a.key === action)?.label.toLowerCase();
+    const bottles = targets.reduce((sum, o) => sum + o.quantity, 0);
+    const note = skipped > 0 ? `\n(${skipped} commande(s) cochée(s) ignorée(s) : déjà dans cet état ou pas encore livrée(s).)` : "";
+    if (!window.confirm(`${label} : ${targets.length} commande(s), ${bottles} bouteille(s) ?${note}`)) return;
+
+    setBulkBusy(true);
+    const body = isDeliveryAction ? { deliveryStatus: action } : { pickupStatus: action };
+    const results = await Promise.all(
+      targets.map((o) =>
+        fetch(`/api/admin/orders/${o.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }).then((res) => res.ok)
+      )
+    );
+    const failed = results.filter((ok) => !ok).length;
+    if (failed > 0) window.alert(`${failed} commande(s) n'ont pas pu être mises à jour.`);
+    setSelectedIds(new Set());
+    await loadAll();
+    setBulkBusy(false);
+  }
 
   return (
     <div className="space-y-5">
@@ -456,6 +523,45 @@ export default function AdminVentesPage() {
               </button>
             )}
           </div>
+
+          {/* Modification groupée : coche des commandes (ou « Tout cocher » sur les
+              commandes affichées, après avoir filtré par client par exemple). */}
+          {visibleOrders.length > 0 && (
+            <div className="space-y-2 border-t border-border pt-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set(visibleOrders.map((o) => o.id)))}
+                  className="underline"
+                >
+                  Tout cocher ({visibleOrders.length})
+                </button>
+                {selectedVisible.length > 0 && (
+                  <button type="button" onClick={() => setSelectedIds(new Set())} className="underline">
+                    Tout décocher
+                  </button>
+                )}
+                <span className="text-muted">
+                  {selectedVisible.length} cochée{selectedVisible.length > 1 ? "s" : ""}
+                </span>
+              </div>
+              {selectedVisible.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {BULK_ACTIONS.map((a) => (
+                    <button
+                      key={a.key}
+                      type="button"
+                      onClick={() => handleBulk(a.key)}
+                      disabled={bulkBusy}
+                      className="rounded-full border border-accent bg-accent px-2.5 py-1 text-accent-foreground disabled:opacity-50"
+                    >
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -581,7 +687,14 @@ export default function AdminVentesPage() {
                 </div>
               ) : (
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <input
+                    type="checkbox"
+                    aria-label="Cocher cette commande"
+                    checked={selectedIds.has(order.id)}
+                    onChange={() => toggleSelected(order.id)}
+                    className="mt-1.5 h-4 w-4 shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium">
                       {order.recipe_name_snapshot} x{order.quantity}
                     </p>

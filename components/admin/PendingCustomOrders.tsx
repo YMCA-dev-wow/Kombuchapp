@@ -16,6 +16,32 @@ const ORIGIN_LABELS: Record<Order["created_by"], string> = {
   sur_commande: "Sur commande",
 };
 
+type DeliveryView = "liste" | "gout" | "client";
+
+const VIEW_OPTIONS: { key: DeliveryView; label: string }[] = [
+  { key: "liste", label: "Liste" },
+  { key: "gout", label: "Par goût" },
+  { key: "client", label: "Par client" },
+];
+
+type Group = { key: string; label: string; orders: Order[]; bottles: number };
+
+function groupBy(orders: Order[], keyOf: (o: Order) => string, labelOf: (o: Order) => string): Group[] {
+  const map = new Map<string, Group>();
+  for (const order of orders) {
+    const key = keyOf(order);
+    const group = map.get(key) ?? { key, label: labelOf(order), orders: [], bottles: 0 };
+    group.orders.push(order);
+    group.bottles += order.quantity;
+    map.set(key, group);
+  }
+  return Array.from(map.values());
+}
+
+function bottlesLabel(n: number): string {
+  return `${n} bouteille${n > 1 ? "s" : ""}`;
+}
+
 // Zone « À honorer » de l'onglet Ventes. Elle regroupe :
 // - les demandes "sur commande" validées, pas encore transformées en vente
 //   (honorées depuis le stock si le stock suffit, ou en "production dédiée"
@@ -36,6 +62,7 @@ export function PendingCustomOrders({
   const [settings, setSettings] = useState<Record<string, RowSettings>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [view, setView] = useState<DeliveryView>("liste");
 
   async function loadRequests() {
     const res = await fetch("/api/admin/commandes");
@@ -94,21 +121,35 @@ export function PendingCustomOrders({
     setBusyId(null);
   }
 
-  async function handleDelivered(order: Order) {
-    setBusyId(order.id);
-    setErrors((prev) => ({ ...prev, [order.id]: "" }));
-    const res = await fetch(`/api/admin/orders/${order.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deliveryStatus: "livree" }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setErrors((prev) => ({ ...prev, [order.id]: data.error ?? "Erreur lors de l'opération." }));
-    } else {
-      await onHonored();
+  // Marque une ou plusieurs commandes comme livrées (un seul clic pour tout
+  // un client, par exemple). `busyKey` identifie le bouton occupé.
+  async function markDelivered(targets: Order[], busyKey: string) {
+    setBusyId(busyKey);
+    setErrors((prev) => ({ ...prev, [busyKey]: "" }));
+    const results = await Promise.all(
+      targets.map((order) =>
+        fetch(`/api/admin/orders/${order.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deliveryStatus: "livree" }),
+        }).then((res) => res.ok)
+      )
+    );
+    const failed = results.filter((ok) => !ok).length;
+    if (failed > 0) {
+      setErrors((prev) => ({
+        ...prev,
+        [busyKey]: `${failed} commande${failed > 1 ? "s" : ""} n'${failed > 1 ? "ont" : "a"} pas pu être mise${failed > 1 ? "s" : ""} à jour.`,
+      }));
     }
+    await onHonored();
     setBusyId(null);
+  }
+
+  function handleDeliverGroup(name: string, targets: Order[]) {
+    const bottles = targets.reduce((sum, o) => sum + o.quantity, 0);
+    if (!window.confirm(`Marquer comme livrées les ${targets.length} commande(s) (${bottles} bouteille(s)) de ${name} ?`)) return;
+    markDelivered(targets, `group:${name}`);
   }
 
   if (requests.length === 0 && toDeliver.length === 0) return null;
@@ -117,6 +158,13 @@ export function PendingCustomOrders({
   const deliveries = [...toDeliver].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
+
+  // Regroupements : par goût (combien de bouteilles à préparer) et par client
+  // (clients regroupés sans tenir compte de la casse).
+  const byRecipe = groupBy(deliveries, (o) => o.recipe_name_snapshot.trim().toLowerCase(), (o) => o.recipe_name_snapshot.trim())
+    .sort((a, b) => b.bottles - a.bottles || a.label.localeCompare(b.label, "fr"));
+  const byCustomer = groupBy(deliveries, (o) => o.customer_name.trim().toLowerCase(), (o) => o.customer_name.trim())
+    .sort((a, b) => a.label.localeCompare(b.label, "fr"));
 
   return (
     <div className="space-y-3 rounded-xl border border-accent/40 bg-accent/5 p-4">
@@ -218,10 +266,76 @@ export function PendingCustomOrders({
       })}
 
       {deliveries.length > 0 && (
-        <p className="text-xs font-medium">Commandes à livrer ({deliveries.length})</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-medium">
+            Commandes à livrer ({deliveries.length} · {bottlesLabel(deliveries.reduce((s, o) => s + o.quantity, 0))})
+          </p>
+          <div className="flex rounded-full border border-border bg-white p-0.5 text-xs">
+            {VIEW_OPTIONS.map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => setView(o.key)}
+                aria-pressed={view === o.key}
+                className={`rounded-full px-2.5 py-1 ${view === o.key ? "bg-accent text-accent-foreground" : ""}`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
-      {deliveries.map((order) => (
+      {/* Par goût : combien de bouteilles de chaque goût sont à livrer, et pour qui. */}
+      {view === "gout" &&
+        byRecipe.map((group) => (
+          <div key={group.key} className="space-y-1.5 rounded-lg border border-border bg-white/70 p-3">
+            <p className="flex items-baseline justify-between gap-2 font-medium">
+              <span className="min-w-0 truncate">{group.label}</span>
+              <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
+            </p>
+            <ul className="space-y-0.5 text-xs text-muted">
+              {group.orders.map((order) => (
+                <li key={order.id} className="flex justify-between gap-2">
+                  <span className="min-w-0 truncate">{order.customer_name}</span>
+                  <span className="shrink-0">× {order.quantity}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+
+      {/* Par client : tout ce qu'un client attend, avec un bouton pour tout livrer d'un coup. */}
+      {view === "client" &&
+        byCustomer.map((group) => {
+          const busyKey = `group:${group.label}`;
+          return (
+            <div key={group.key} className="space-y-1.5 rounded-lg border border-border bg-white/70 p-3">
+              <p className="flex items-baseline justify-between gap-2 font-medium">
+                <span className="min-w-0 truncate">{group.label}</span>
+                <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
+              </p>
+              <ul className="space-y-0.5 text-xs text-muted">
+                {group.orders.map((order) => (
+                  <li key={order.id} className="flex justify-between gap-2">
+                    <span className="min-w-0 truncate">{order.recipe_name_snapshot}</span>
+                    <span className="shrink-0">× {order.quantity}</span>
+                  </li>
+                ))}
+              </ul>
+              {errors[busyKey] && <p className="text-xs text-danger">{errors[busyKey]}</p>}
+              <button
+                onClick={() => handleDeliverGroup(group.label, group.orders)}
+                disabled={busyId === busyKey}
+                className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
+              >
+                Tout marquer comme livré
+              </button>
+            </div>
+          );
+        })}
+
+      {view === "liste" && deliveries.map((order) => (
         <div key={order.id} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
           <div>
             <p className="font-medium">
@@ -237,7 +351,7 @@ export function PendingCustomOrders({
           </div>
           {errors[order.id] && <p className="text-xs text-danger">{errors[order.id]}</p>}
           <button
-            onClick={() => handleDelivered(order)}
+            onClick={() => markDelivered([order], order.id)}
             disabled={busyId === order.id}
             className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
           >
