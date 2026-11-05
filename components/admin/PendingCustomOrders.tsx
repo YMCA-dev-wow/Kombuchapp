@@ -24,15 +24,25 @@ const VIEW_OPTIONS: { key: DeliveryView; label: string }[] = [
   { key: "client", label: "Par client" },
 ];
 
-type Group = { key: string; label: string; orders: Order[]; bottles: number };
+// Une entrée par demande à honorer (demande « sur commande » validée) ou par
+// commande à livrer, pour pouvoir les regrouper ensemble.
+type Item =
+  | { kind: "demande"; id: string; recipe: string; customer: string; quantity: number; request: CustomOrder }
+  | { kind: "livraison"; id: string; recipe: string; customer: string; quantity: number; order: Order };
 
-function groupBy(orders: Order[], keyOf: (o: Order) => string, labelOf: (o: Order) => string): Group[] {
+const KIND_LABELS: Record<Item["kind"], string> = { demande: "à honorer", livraison: "à livrer" };
+
+type Group = { key: string; label: string; items: Item[]; bottles: number };
+
+// Regroupe sans tenir compte de la casse ni des espaces autour du nom.
+function groupItems(items: Item[], labelOf: (i: Item) => string): Group[] {
   const map = new Map<string, Group>();
-  for (const order of orders) {
-    const key = keyOf(order);
-    const group = map.get(key) ?? { key, label: labelOf(order), orders: [], bottles: 0 };
-    group.orders.push(order);
-    group.bottles += order.quantity;
+  for (const item of items) {
+    const label = labelOf(item);
+    const key = label.toLowerCase();
+    const group = map.get(key) ?? { key, label, items: [], bottles: 0 };
+    group.items.push(item);
+    group.bottles += item.quantity;
     map.set(key, group);
   }
   return Array.from(map.values());
@@ -159,134 +169,190 @@ export function PendingCustomOrders({
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
 
-  // Regroupements : par goût (combien de bouteilles à préparer) et par client
-  // (clients regroupés sans tenir compte de la casse).
-  const byRecipe = groupBy(deliveries, (o) => o.recipe_name_snapshot.trim().toLowerCase(), (o) => o.recipe_name_snapshot.trim())
-    .sort((a, b) => b.bottles - a.bottles || a.label.localeCompare(b.label, "fr"));
-  const byCustomer = groupBy(deliveries, (o) => o.customer_name.trim().toLowerCase(), (o) => o.customer_name.trim())
-    .sort((a, b) => a.label.localeCompare(b.label, "fr"));
+  // Une entrée par demande à honorer ou par commande à livrer : les deux sont
+  // regroupées ensemble pour savoir combien de bouteilles de chaque goût
+  // sont attendues, et ce que chaque client attend.
+  const items: Item[] = [
+    ...requests.map(
+      (request): Item => ({
+        kind: "demande",
+        id: request.id,
+        recipe: request.recipe_name.trim(),
+        customer: request.customer_name.trim(),
+        quantity: request.quantity,
+        request,
+      })
+    ),
+    ...deliveries.map(
+      (order): Item => ({
+        kind: "livraison",
+        id: order.id,
+        recipe: order.recipe_name_snapshot.trim(),
+        customer: order.customer_name.trim(),
+        quantity: order.quantity,
+        order,
+      })
+    ),
+  ];
+  const byRecipe = groupItems(items, (i) => i.recipe).sort(
+    (a, b) => b.bottles - a.bottles || a.label.localeCompare(b.label, "fr")
+  );
+  const byCustomer = groupItems(items, (i) => i.customer).sort((a, b) => a.label.localeCompare(b.label, "fr"));
+
+  function renderRequestCard(request: CustomOrder) {
+    const s = getSettings(request);
+    const recipe = recipes.find((r) => r.id === s.recipeId);
+    const enoughStock = recipe ? recipe.quantity >= request.quantity : false;
+
+    return (
+      <div key={request.id} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
+        <div>
+          <p className="font-medium">
+            {request.recipe_name} × {request.quantity}
+          </p>
+          <p className="text-xs text-muted">
+            {request.customer_name}
+            {request.desired_date ? ` · souhaitée pour le ${request.desired_date}` : ""}
+            {request.customer_email ? "" : " · pas d'email (pas de notification)"}
+          </p>
+        </div>
+
+        <select
+          value={s.recipeId}
+          onChange={(e) => updateSettings(request, { recipeId: e.target.value })}
+          className="w-full rounded-lg border border-border bg-white px-2 py-2 text-sm"
+        >
+          <option value="">-- Recette hors catalogue --</option>
+          {recipes.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name} ({r.quantity} en stock)
+            </option>
+          ))}
+        </select>
+
+        {recipe && (
+          <p className={`text-xs ${enoughStock ? "text-accent" : "text-danger"}`}>
+            {recipe.quantity} dispo / {request.quantity} demandée{request.quantity > 1 ? "s" : ""}
+            {enoughStock ? "" : " : stock insuffisant"}
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          <select
+            value={s.orderType}
+            onChange={(e) => updateSettings(request, { orderType: e.target.value as "vendu" | "donne" })}
+            className="rounded-lg border border-border bg-white px-2 py-2 text-sm"
+          >
+            <option value="vendu">Vendu</option>
+            <option value="donne">Offert</option>
+          </select>
+          {s.orderType === "vendu" && (
+            <input
+              type="number"
+              min={0}
+              step="0.5"
+              placeholder="Montant (EUR)"
+              value={s.unitAmount}
+              onChange={(e) =>
+                updateSettings(request, {
+                  unitAmount: e.target.value === "" ? "" : Number(e.target.value),
+                })
+              }
+              className="flex-1 rounded-lg border border-border bg-white px-2 py-2 text-sm"
+            />
+          )}
+        </div>
+
+        {errors[request.id] && <p className="text-xs text-danger">{errors[request.id]}</p>}
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => handleHonor(request, true)}
+            disabled={busyId === request.id || !recipe || !enoughStock}
+            className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-40"
+          >
+            Honorer depuis le stock
+          </button>
+          <button
+            onClick={() => handleHonor(request, false)}
+            disabled={busyId === request.id}
+            className="rounded-full border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+          >
+            Honorer (production dédiée)
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderDeliveryCard(order: Order) {
+    return (
+      <div key={order.id} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
+        <div>
+          <p className="font-medium">
+            {order.recipe_name_snapshot} × {order.quantity}
+          </p>
+          <p className="text-xs text-muted">
+            {order.customer_name} · {ORIGIN_LABELS[order.created_by]} ·{" "}
+            {order.order_type === "donne"
+              ? "offerte"
+              : `vendue${order.unit_amount != null ? ` ${Number(order.unit_amount).toLocaleString("fr-FR")} EUR` : ""}`}{" "}
+            · le {new Date(order.created_at).toLocaleDateString("fr-FR")}
+          </p>
+        </div>
+        {errors[order.id] && <p className="text-xs text-danger">{errors[order.id]}</p>}
+        <button
+          onClick={() => markDelivered([order], order.id)}
+          disabled={busyId === order.id}
+          className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
+        >
+          Marquer comme livrée
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3 rounded-xl border border-accent/40 bg-accent/5 p-4">
-      <div>
-        <p className="text-sm font-medium">À honorer ({requests.length + toDeliver.length})</p>
-        <p className="text-xs text-muted">
-          Demandes « sur commande » validées à transformer en vente, et commandes à livrer.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium">
+            À honorer ({requests.length + toDeliver.length} · {bottlesLabel(items.reduce((s, i) => s + i.quantity, 0))})
+          </p>
+          <p className="text-xs text-muted">
+            Demandes « sur commande » validées à transformer en vente, et commandes à livrer.
+          </p>
+        </div>
+        <div className="flex rounded-full border border-border bg-white p-0.5 text-xs">
+          {VIEW_OPTIONS.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              onClick={() => setView(o.key)}
+              aria-pressed={view === o.key}
+              className={`rounded-full px-2.5 py-1 ${view === o.key ? "bg-accent text-accent-foreground" : ""}`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {requests.length > 0 && (
-        <p className="text-xs font-medium">Demandes à honorer ({requests.length})</p>
+      {/* Liste : d'abord les demandes à honorer, puis les commandes à livrer. */}
+      {view === "liste" && (
+        <>
+          {requests.length > 0 && <p className="text-xs font-medium">Demandes à honorer ({requests.length})</p>}
+          {requests.map(renderRequestCard)}
+          {deliveries.length > 0 && (
+            <p className="text-xs font-medium">
+              Commandes à livrer ({deliveries.length} · {bottlesLabel(deliveries.reduce((s, o) => s + o.quantity, 0))})
+            </p>
+          )}
+          {deliveries.map(renderDeliveryCard)}
+        </>
       )}
 
-      {requests.map((request) => {
-        const s = getSettings(request);
-        const recipe = recipes.find((r) => r.id === s.recipeId);
-        const enoughStock = recipe ? recipe.quantity >= request.quantity : false;
-
-        return (
-          <div key={request.id} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
-            <div>
-              <p className="font-medium">
-                {request.recipe_name} × {request.quantity}
-              </p>
-              <p className="text-xs text-muted">
-                {request.customer_name}
-                {request.desired_date ? ` · souhaitée pour le ${request.desired_date}` : ""}
-                {request.customer_email ? "" : " · pas d'email (pas de notification)"}
-              </p>
-            </div>
-
-            <select
-              value={s.recipeId}
-              onChange={(e) => updateSettings(request, { recipeId: e.target.value })}
-              className="w-full rounded-lg border border-border bg-white px-2 py-2 text-sm"
-            >
-              <option value="">-- Recette hors catalogue --</option>
-              {recipes.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name} ({r.quantity} en stock)
-                </option>
-              ))}
-            </select>
-
-            {recipe && (
-              <p className={`text-xs ${enoughStock ? "text-accent" : "text-danger"}`}>
-                {recipe.quantity} dispo / {request.quantity} demandée{request.quantity > 1 ? "s" : ""}
-                {enoughStock ? "" : " : stock insuffisant"}
-              </p>
-            )}
-
-            <div className="flex gap-2">
-              <select
-                value={s.orderType}
-                onChange={(e) => updateSettings(request, { orderType: e.target.value as "vendu" | "donne" })}
-                className="rounded-lg border border-border bg-white px-2 py-2 text-sm"
-              >
-                <option value="vendu">Vendu</option>
-                <option value="donne">Offert</option>
-              </select>
-              {s.orderType === "vendu" && (
-                <input
-                  type="number"
-                  min={0}
-                  step="0.5"
-                  placeholder="Montant (EUR)"
-                  value={s.unitAmount}
-                  onChange={(e) =>
-                    updateSettings(request, {
-                      unitAmount: e.target.value === "" ? "" : Number(e.target.value),
-                    })
-                  }
-                  className="flex-1 rounded-lg border border-border bg-white px-2 py-2 text-sm"
-                />
-              )}
-            </div>
-
-            {errors[request.id] && <p className="text-xs text-danger">{errors[request.id]}</p>}
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => handleHonor(request, true)}
-                disabled={busyId === request.id || !recipe || !enoughStock}
-                className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-40"
-              >
-                Honorer depuis le stock
-              </button>
-              <button
-                onClick={() => handleHonor(request, false)}
-                disabled={busyId === request.id}
-                className="rounded-full border border-border px-3 py-1.5 text-xs disabled:opacity-50"
-              >
-                Honorer (production dédiée)
-              </button>
-            </div>
-          </div>
-        );
-      })}
-
-      {deliveries.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-medium">
-            Commandes à livrer ({deliveries.length} · {bottlesLabel(deliveries.reduce((s, o) => s + o.quantity, 0))})
-          </p>
-          <div className="flex rounded-full border border-border bg-white p-0.5 text-xs">
-            {VIEW_OPTIONS.map((o) => (
-              <button
-                key={o.key}
-                type="button"
-                onClick={() => setView(o.key)}
-                aria-pressed={view === o.key}
-                className={`rounded-full px-2.5 py-1 ${view === o.key ? "bg-accent text-accent-foreground" : ""}`}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Par goût : combien de bouteilles de chaque goût sont à livrer, et pour qui. */}
+      {/* Par goût : combien de bouteilles de chaque goût sont attendues, et pour qui. */}
       {view === "gout" &&
         byRecipe.map((group) => (
           <div key={group.key} className="space-y-1.5 rounded-lg border border-border bg-white/70 p-3">
@@ -295,70 +361,62 @@ export function PendingCustomOrders({
               <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
             </p>
             <ul className="space-y-0.5 text-xs text-muted">
-              {group.orders.map((order) => (
-                <li key={order.id} className="flex justify-between gap-2">
-                  <span className="min-w-0 truncate">{order.customer_name}</span>
-                  <span className="shrink-0">× {order.quantity}</span>
+              {group.items.map((item) => (
+                <li key={item.id} className="flex justify-between gap-2">
+                  <span className="min-w-0 truncate">
+                    {item.customer} <span className="text-[11px]">· {KIND_LABELS[item.kind]}</span>
+                  </span>
+                  <span className="shrink-0">× {item.quantity}</span>
                 </li>
               ))}
             </ul>
           </div>
         ))}
 
-      {/* Par client : tout ce qu'un client attend, avec un bouton pour tout livrer d'un coup. */}
+      {/* Par client : tout ce qu'un client attend. Les demandes restent honorables
+          depuis cette vue, et ses livraisons se valident d'un seul bouton. */}
       {view === "client" &&
         byCustomer.map((group) => {
           const busyKey = `group:${group.label}`;
+          const groupDeliveries = group.items.flatMap((i) => (i.kind === "livraison" ? [i.order] : []));
+          const groupRequests = group.items.flatMap((i) => (i.kind === "demande" ? [i.request] : []));
           return (
-            <div key={group.key} className="space-y-1.5 rounded-lg border border-border bg-white/70 p-3">
+            <div key={group.key} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
               <p className="flex items-baseline justify-between gap-2 font-medium">
                 <span className="min-w-0 truncate">{group.label}</span>
                 <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
               </p>
               <ul className="space-y-0.5 text-xs text-muted">
-                {group.orders.map((order) => (
-                  <li key={order.id} className="flex justify-between gap-2">
-                    <span className="min-w-0 truncate">{order.recipe_name_snapshot}</span>
-                    <span className="shrink-0">× {order.quantity}</span>
+                {group.items.map((item) => (
+                  <li key={item.id} className="flex justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      {item.recipe} <span className="text-[11px]">· {KIND_LABELS[item.kind]}</span>
+                    </span>
+                    <span className="shrink-0">× {item.quantity}</span>
                   </li>
                 ))}
               </ul>
-              {errors[busyKey] && <p className="text-xs text-danger">{errors[busyKey]}</p>}
-              <button
-                onClick={() => handleDeliverGroup(group.label, group.orders)}
-                disabled={busyId === busyKey}
-                className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
-              >
-                Tout marquer comme livré
-              </button>
+              {groupDeliveries.length > 0 && (
+                <>
+                  {errors[busyKey] && <p className="text-xs text-danger">{errors[busyKey]}</p>}
+                  <button
+                    onClick={() => handleDeliverGroup(group.label, groupDeliveries)}
+                    disabled={busyId === busyKey}
+                    className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
+                  >
+                    Tout marquer comme livré ({groupDeliveries.length})
+                  </button>
+                </>
+              )}
+              {groupRequests.length > 0 && (
+                <div className="space-y-2 border-t border-border pt-2">
+                  <p className="text-xs font-medium">À honorer</p>
+                  {groupRequests.map(renderRequestCard)}
+                </div>
+              )}
             </div>
           );
         })}
-
-      {view === "liste" && deliveries.map((order) => (
-        <div key={order.id} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
-          <div>
-            <p className="font-medium">
-              {order.recipe_name_snapshot} × {order.quantity}
-            </p>
-            <p className="text-xs text-muted">
-              {order.customer_name} · {ORIGIN_LABELS[order.created_by]} ·{" "}
-              {order.order_type === "donne"
-                ? "offerte"
-                : `vendue${order.unit_amount != null ? ` ${Number(order.unit_amount).toLocaleString("fr-FR")} EUR` : ""}`}{" "}
-              · le {new Date(order.created_at).toLocaleDateString("fr-FR")}
-            </p>
-          </div>
-          {errors[order.id] && <p className="text-xs text-danger">{errors[order.id]}</p>}
-          <button
-            onClick={() => markDelivered([order], order.id)}
-            disabled={busyId === order.id}
-            className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
-          >
-            Marquer comme livrée
-          </button>
-        </div>
-      ))}
     </div>
   );
 }
