@@ -1,9 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { RecipeNameSelect } from "@/components/RecipeNameSelect";
 
 export default function SurCommandePage() {
   const [recipeName, setRecipeName] = useState("");
+  // Goûts du catalogue proposés dans le menu (même en rupture : on peut
+  // commander un goût qui n'est plus en stock).
+  const [recipeNames, setRecipeNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("recipes").select("name").eq("active", true).order("name");
+      if (data) setRecipeNames(data.map((r) => r.name as string));
+    })();
+  }, []);
   const [details, setDetails] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [desiredDate, setDesiredDate] = useState("");
@@ -65,13 +77,12 @@ export default function SurCommandePage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="mb-1 block text-sm font-medium">Recette souhaitée</label>
-          <input
-            type="text"
+          <RecipeNameSelect
             value={recipeName}
-            onChange={(e) => setRecipeName(e.target.value)}
-            placeholder="Ex : Kombucha Fraise-Basilic"
+            onChange={setRecipeName}
+            names={recipeNames}
             required
-            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            otherPlaceholder="Ex : Kombucha Fraise-Basilic"
           />
         </div>
 

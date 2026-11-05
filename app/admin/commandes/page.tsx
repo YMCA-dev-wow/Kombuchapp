@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CustomOrder } from "@/lib/types";
 import { diffCustomOrder } from "@/lib/customOrderChanges";
+import { RecipeNameSelect } from "@/components/RecipeNameSelect";
 
 type EditFields = { recipeName: string; quantity: number; desiredDate: string; details: string };
 
@@ -21,6 +22,18 @@ export default function AdminCommandesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFields, setEditFields] = useState<EditFields | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  // Goûts du catalogue pour le menu déroulant de modification.
+  const [recipeNames, setRecipeNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch("/api/admin/recipes");
+      const data = await res.json();
+      if (res.ok) {
+        setRecipeNames((data.recipes as { name: string; active: boolean }[]).filter((r) => r.active).map((r) => r.name));
+      }
+    })();
+  }, []);
 
   function startEdit(order: CustomOrder) {
     setEditingId(order.id);
@@ -115,11 +128,12 @@ export default function AdminCommandesPage() {
                   <p className="text-xs text-muted">
                     Demande de {order.customer_name} : modifie ce qui a été convenu avec le client.
                   </p>
-                  <input
-                    aria-label="Goût"
+                  <RecipeNameSelect
+                    ariaLabel="Goût"
                     value={editFields.recipeName}
-                    onChange={(e) => setEditFields({ ...editFields, recipeName: e.target.value })}
-                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+                    onChange={(name) => setEditFields({ ...editFields, recipeName: name })}
+                    names={recipeNames}
+                    required
                   />
                   <div className="flex gap-2">
                     <input

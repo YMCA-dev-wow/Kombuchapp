@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Order, Recipe } from "@/lib/types";
 import { PendingCustomOrders } from "@/components/admin/PendingCustomOrders";
+import { RecipeNameSelect } from "@/components/RecipeNameSelect";
 
 function toDateInputValue(iso: string): string {
   return iso.slice(0, 10);
@@ -577,10 +578,12 @@ export default function AdminVentesPage() {
             <div key={order.id} className="rounded-xl border border-border bg-white/60 p-4">
               {editingId === order.id && editFields ? (
                 <div className="space-y-2">
-                  <input
+                  <RecipeNameSelect
+                    ariaLabel="Goût"
                     value={editFields.recipeName}
-                    onChange={(e) => setEditFields({ ...editFields, recipeName: e.target.value })}
-                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+                    onChange={(name) => setEditFields({ ...editFields, recipeName: name })}
+                    names={recipes.map((r) => r.name)}
+                    required
                   />
                   <div className="flex gap-2">
                     <input
