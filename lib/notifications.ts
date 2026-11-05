@@ -1,6 +1,7 @@
 import "server-only";
 import { Resend } from "resend";
 import { unsubscribeUrl } from "@/lib/unsubscribe";
+import { formatDesiredDate, type CustomOrderChange } from "@/lib/customOrderChanges";
 
 // =======================================================================
 // Couche de NOTIFICATIONS, pensée pour rester modulaire.
@@ -40,6 +41,11 @@ export type NotificationEvent =
       recipeName: string;
       customerEmail?: string | null;
       adminNote?: string;
+      // Validation d'une demande modifiée par le producteur : ce qui a changé
+      // par rapport à la demande initiale, et la commande telle que validée.
+      changes?: CustomOrderChange[];
+      quantity?: number;
+      desiredDate?: string | null;
     }
   | {
       // Demande "sur commande" honorée : les bouteilles sont prêtes.
@@ -145,12 +151,28 @@ function buildMessages(event: NotificationEvent): Message[] {
     case "commande_personnalisee_refusee": {
       if (event.customerEmail) {
         const validee = event.type === "commande_personnalisee_validee";
+        // Récapitulatif des modifications convenues avec le client (si la
+        // demande a été modifiée avant validation).
+        const changesHtml =
+          validee && event.changes && event.changes.length > 0
+            ? `<p>Suite à notre échange, voici ce qui a été modifié par rapport à ta demande initiale :</p>
+               <ul>${event.changes
+                 .map(
+                   (c) =>
+                     `<li>${escapeHtml(c.label)} : ${escapeHtml(c.before)} → <strong>${escapeHtml(c.after)}</strong></li>`
+                 )
+                 .join("")}</ul>
+               <p>Ta commande validée : ${event.quantity ?? ""} x ${escapeHtml(event.recipeName)}${
+                 event.desiredDate !== undefined ? `, date souhaitée : ${escapeHtml(formatDesiredDate(event.desiredDate))}` : ""
+               }.</p>`
+            : "";
         messages.push({
           to: event.customerEmail,
           subject: validee
             ? `Ta commande "${event.recipeName}" est validée !`
             : `À propos de ta demande "${event.recipeName}"`,
           html: `<p>${validee ? "Bonne nouvelle, ta demande a été validée." : "Ta demande n'a malheureusement pas pu être validée."}</p>
+                 ${changesHtml}
                  ${event.adminNote ? `<p>${event.adminNote}</p>` : ""}`,
         });
       }

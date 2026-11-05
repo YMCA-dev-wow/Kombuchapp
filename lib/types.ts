@@ -25,12 +25,23 @@ export type Order = {
   created_at: string;
 };
 
+// Contenu d'une demande "sur commande" que le producteur peut modifier.
+export type CustomOrderContent = {
+  recipe_name: string;
+  details: string;
+  quantity: number;
+  desired_date: string | null;
+};
+
 export type CustomOrder = {
   id: string;
   recipe_name: string;
   details: string;
   quantity: number;
   desired_date: string | null;
+  // Demande telle que déposée par le client, renseignée dès la première
+  // modification par le producteur (null = jamais modifiée).
+  original_request: CustomOrderContent | null;
   customer_name: string;
   customer_email: string | null;
   status: "en_attente" | "validee" | "refusee" | "honoree";
