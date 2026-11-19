@@ -59,11 +59,6 @@ function groupItems(items: Item[], labelOf: (i: Item) => string): Group[] {
   return Array.from(map.values());
 }
 
-// Nombre de bouteilles d'un groupe déjà en F2.
-function f2Bottles(group: Group): number {
-  return group.items.filter((i) => i.inF2).reduce((sum, i) => sum + i.quantity, 0);
-}
-
 function bottlesLabel(n: number): string {
   return `${n} bouteille${n > 1 ? "s" : ""}`;
 }
@@ -256,6 +251,8 @@ export function PendingCustomOrders({
       })
     ),
   ];
+  // Bouteilles déjà en F2, affichées en haut de la zone à côté du total.
+  const f2Total = items.filter((i) => i.inF2).reduce((sum, i) => sum + i.quantity, 0);
   const byRecipe = groupItems(items, (i) => i.recipe).sort(
     (a, b) => b.bottles - a.bottles || a.label.localeCompare(b.label, "fr")
   );
@@ -411,7 +408,8 @@ export function PendingCustomOrders({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-sm font-medium">
-            À honorer ({requests.length + toDeliver.length} · {bottlesLabel(items.reduce((s, i) => s + i.quantity, 0))})
+            À honorer ({requests.length + toDeliver.length} · {bottlesLabel(items.reduce((s, i) => s + i.quantity, 0))}
+            {f2Total > 0 && <span className="text-amber-800"> · dont {f2Total} en F2</span>})
           </p>
           <p className="text-xs text-muted">
             Demandes « sur commande » validées à transformer en vente, et commandes à livrer.
@@ -452,10 +450,7 @@ export function PendingCustomOrders({
           <div key={group.key} className="space-y-1.5 rounded-lg border border-border bg-white/70 p-3">
             <p className="flex items-baseline justify-between gap-2 font-medium">
               <span className="min-w-0 truncate">{group.label}</span>
-              <span className="shrink-0">
-                {bottlesLabel(group.bottles)}
-                {f2Bottles(group) > 0 && <span className="font-normal text-amber-800"> · {f2Bottles(group)} en F2</span>}
-              </span>
+              <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
             </p>
             <ul className="space-y-0.5 text-xs text-muted">
               {group.items.map((item) => (
@@ -489,10 +484,7 @@ export function PendingCustomOrders({
             <div key={group.key} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
               <p className="flex items-baseline justify-between gap-2 font-medium">
                 <span className="min-w-0 truncate">{group.label}</span>
-                <span className="shrink-0">
-                {bottlesLabel(group.bottles)}
-                {f2Bottles(group) > 0 && <span className="font-normal text-amber-800"> · {f2Bottles(group)} en F2</span>}
-              </span>
+                <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
               </p>
               <ul className="space-y-0.5 text-xs text-muted">
                 {group.items.map((item) => (
