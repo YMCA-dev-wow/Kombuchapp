@@ -32,6 +32,9 @@ export type NotificationEvent =
       type: "nouvelle_demande_sur_commande";
       recipeName: string;
       quantity: number;
+      // Demande portant sur plusieurs goûts (une ligne par goût) : un seul
+      // email récapitule l'ensemble. Absent = un seul goût (recipeName/quantity).
+      items?: { recipeName: string; quantity: number }[];
       desiredDate?: string | null;
       customerName: string;
       customerEmail?: string | null;
@@ -129,20 +132,36 @@ function buildMessages(event: NotificationEvent): Message[] {
       break;
     }
     case "nouvelle_demande_sur_commande": {
+      const items =
+        event.items && event.items.length > 0
+          ? event.items
+          : [{ recipeName: event.recipeName, quantity: event.quantity }];
+      const multiple = items.length > 1;
+      const listHtml = `<ul>${items
+        .map((i) => `<li>${i.quantity} x ${escapeHtml(i.recipeName)}</li>`)
+        .join("")}</ul>`;
       if (adminEmail) {
         messages.push({
           to: adminEmail,
           subject: `Nouvelle demande "sur commande" de ${event.customerName}`,
-          html: `<p><strong>${event.customerName}</strong> demande ${event.quantity} x ${event.recipeName}</p>
-                 ${event.desiredDate ? `<p>Date souhaitée : ${event.desiredDate}</p>` : ""}`,
+          html: multiple
+            ? `<p><strong>${escapeHtml(event.customerName)}</strong> demande :</p>${listHtml}
+               ${event.desiredDate ? `<p>Date souhaitée : ${event.desiredDate}</p>` : ""}`
+            : `<p><strong>${event.customerName}</strong> demande ${event.quantity} x ${event.recipeName}</p>
+               ${event.desiredDate ? `<p>Date souhaitée : ${event.desiredDate}</p>` : ""}`,
         });
       }
       if (event.customerEmail) {
         messages.push({
           to: event.customerEmail,
-          subject: `Ta demande "${event.recipeName}" a bien été reçue`,
-          html: `<p>Merci ${event.customerName} ! Ta demande de ${event.quantity} x ${event.recipeName} a bien été reçue.</p>
-                 <p>Elle est en attente de validation manuelle, tu recevras un email dès que c'est fait.</p>`,
+          subject: multiple
+            ? `Ta demande "sur commande" a bien été reçue`
+            : `Ta demande "${event.recipeName}" a bien été reçue`,
+          html: multiple
+            ? `<p>Merci ${escapeHtml(event.customerName)} ! Ta demande a bien été reçue :</p>${listHtml}
+               <p>Elle est en attente de validation manuelle, tu recevras un email dès que c'est fait.</p>`
+            : `<p>Merci ${event.customerName} ! Ta demande de ${event.quantity} x ${event.recipeName} a bien été reçue.</p>
+               <p>Elle est en attente de validation manuelle, tu recevras un email dès que c'est fait.</p>`,
         });
       }
       break;

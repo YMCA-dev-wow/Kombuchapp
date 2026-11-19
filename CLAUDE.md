@@ -34,6 +34,7 @@ Appli web (PWA installable) de vente de kombucha maison entre amis (~100 clients
 - `recipes` : le stock vit sur la recette (`quantity`). Visible en boutique si `active` et `quantity > 0`.
 - `orders` : registre des ventes. `order_type` (`vendu`/`donne`), `unit_amount` (montant **total** de la ligne), `created_by` (`site`/`admin`/`sur_commande`), `delivery_status` (`a_livrer`/`livree`), `pickup_status` (`a_recuperer`/`recuperee`).
   - Règle métier : le statut bouteille n'a de sens **qu'après livraison** (repasser en `a_livrer` remet `pickup_status` à `a_recuperer`, côté API et UI).
+- Saisie manuelle (`POST /api/admin/orders`, `created_by = admin`) : **ne touche jamais au stock** et n'envoie aucun email (voulu : le stock se décompte via la boutique). Une demande « sur commande » à plusieurs goûts crée **une ligne `custom_orders` par goût** (un seul email de réception).
 - `custom_orders` : demandes « sur commande », statut `en_attente` → `validee`/`refusee` → `honoree` (devient une ligne `orders` via la fonction `honor_custom_order`).
 - `subscribers` : abonnés newsletter.
 - Fonctions Postgres **atomiques** (`create_stock_order`, `honor_custom_order`, `restock_recipe`) : toute décrémentation de stock passe par elles (`UPDATE ... WHERE quantity >= n`) pour empêcher la survente. Ne jamais décrémenter le stock en lecture-puis-écriture côté JS.

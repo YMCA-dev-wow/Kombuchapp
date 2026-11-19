@@ -62,24 +62,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Si la ligne est rattachée à une recette existante, on décrémente son
-  // stock pour rester cohérent (best-effort : on ne bloque pas si le
-  // stock devient négatif, ça reste visible et corrigeable par le
-  // producteur -- contrairement à la commande boutique, il n'y a pas de
-  // vérification atomique ici car c'est une saisie manuelle de confiance).
-  if (recipeId) {
-    const { data: recipe } = await supabaseAdmin
-      .from("recipes")
-      .select("quantity")
-      .eq("id", recipeId)
-      .single();
-    if (recipe) {
-      await supabaseAdmin
-        .from("recipes")
-        .update({ quantity: Math.max(0, recipe.quantity - quantity) })
-        .eq("id", recipeId);
-    }
-  }
+  // Une saisie manuelle ne touche JAMAIS au stock : les commandes prises dans
+  // le stock passent par la boutique (décrémentation atomique anti-survente).
+  // La recette sert uniquement à rattacher la vente au goût du catalogue.
 
   return NextResponse.json({ order }, { status: 201 });
 }

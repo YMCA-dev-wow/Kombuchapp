@@ -150,6 +150,28 @@ export default function AdminVentesPage() {
     loadAll();
   }, []);
 
+  // Un clic (ou un appui) hors de la liste des clients, ou la touche Échap,
+  // referme le menu.
+  useEffect(() => {
+    if (!showCustomerPicker) return;
+    function close(e: MouseEvent | TouchEvent) {
+      const target = e.target as Element | null;
+      if (target?.closest("[data-customer-picker]")) return;
+      setShowCustomerPicker(false);
+    }
+    function closeOnEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setShowCustomerPicker(false);
+    }
+    document.addEventListener("mousedown", close);
+    document.addEventListener("touchstart", close);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [showCustomerPicker]);
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -359,6 +381,10 @@ export default function AdminVentesPage() {
                 </option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-muted">
+              Une commande manuelle ne modifie jamais le stock et n&apos;envoie aucun email. Pour une commande prise
+              dans le stock, passe par la boutique.
+            </p>
           </div>
           {!formRecipeId && (
             <div>
@@ -459,6 +485,7 @@ export default function AdminVentesPage() {
             </select>
             <button
               type="button"
+              data-customer-picker
               onClick={() => setShowCustomerPicker((v) => !v)}
               aria-expanded={showCustomerPicker}
               className={`min-w-0 flex-1 truncate rounded-lg border px-2 py-1.5 text-left ${
@@ -473,7 +500,7 @@ export default function AdminVentesPage() {
           </div>
 
           {showCustomerPicker && (
-            <div className="max-h-48 overflow-y-auto rounded-lg border border-border bg-white p-2">
+            <div data-customer-picker className="max-h-48 overflow-y-auto rounded-lg border border-border bg-white p-2">
               <button
                 type="button"
                 onClick={() => setCustomerFilter(new Set())}
