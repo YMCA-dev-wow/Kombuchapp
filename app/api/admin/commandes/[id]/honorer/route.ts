@@ -58,14 +58,29 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Honorer = la commande est considérée comme livrée tout de suite (elle
+  // rejoint la liste des ventes livrées). Si cette mise à jour échoue, la
+  // vente reste "à livrer" et visible dans la zone « À honorer » : on log
+  // l'erreur sans bloquer.
+  const { data: delivered, error: deliveredError } = await supabaseAdmin
+    .from("orders")
+    .update({ delivery_status: "livree" })
+    .eq("id", order.id)
+    .select()
+    .single();
+  if (deliveredError) {
+    console.error("[api/admin/commandes/honorer] passage à livrée échoué:", deliveredError);
+  }
+  const finalOrder = delivered ?? order;
+
   // Email "ta commande est prête" uniquement si le client a laissé son adresse.
   await notify({
     type: "commande_sur_commande_prete",
-    recipeName: order.recipe_name_snapshot,
-    quantity: order.quantity,
-    customerName: order.customer_name,
-    customerEmail: order.customer_email,
+    recipeName: finalOrder.recipe_name_snapshot,
+    quantity: finalOrder.quantity,
+    customerName: finalOrder.customer_name,
+    customerEmail: finalOrder.customer_email,
   });
 
-  return NextResponse.json({ order }, { status: 201 });
+  return NextResponse.json({ order: finalOrder }, { status: 201 });
 }

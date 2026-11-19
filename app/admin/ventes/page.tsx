@@ -26,16 +26,16 @@ type EditableFields = {
 
 // Filtres combinables : à l'intérieur d'un même groupe, une commande doit
 // correspondre à AU MOINS UNE option cochée (OU) ; entre groupes, elle doit
-// satisfaire TOUS les groupes actifs (ET). Ex : "À livrer" + "Vendues" =
-// commandes vendues pas encore livrées.
+// satisfaire TOUS les groupes actifs (ET). Ex : "À récupérer" + "Vendues" =
+// commandes vendues dont la bouteille n'est pas encore revenue. La liste ne
+// contient que les commandes livrées : les commandes à livrer sont dans la
+// zone « À honorer ».
 type FilterKey =
-  | "a_livrer" | "livree"
   | "a_recuperer" | "recuperee"
   | "vendu" | "donne"
   | "site" | "admin" | "sur_commande";
 
 const FILTER_GROUPS: { label: string; options: { key: FilterKey; label: string }[] }[] = [
-  { label: "Livraison", options: [{ key: "a_livrer", label: "À livrer" }, { key: "livree", label: "Livrées" }] },
   { label: "Bouteille", options: [{ key: "a_recuperer", label: "À récupérer" }, { key: "recuperee", label: "Récupérées" }] },
   { label: "Type", options: [{ key: "vendu", label: "Vendues" }, { key: "donne", label: "Offertes" }] },
   {
@@ -56,9 +56,6 @@ function effectivePickup(order: Pick<Order, "delivery_status" | "pickup_status">
 
 function matchesKey(order: Order, key: FilterKey): boolean {
   switch (key) {
-    case "a_livrer":
-    case "livree":
-      return order.delivery_status === key;
     case "a_recuperer":
     case "recuperee":
       return effectivePickup(order) === key;
@@ -250,15 +247,21 @@ export default function AdminVentesPage() {
     });
   }
 
+  // La liste du dessous est réservée aux commandes livrées ; celles à livrer
+  // sont dans la zone « À honorer ».
+  const deliveredOrders = orders.filter((o) => o.delivery_status === "livree");
+
   // Liste des clients (sans doublons, insensible à la casse) pour le filtre.
   const customers = Array.from(
-    new Map(orders.map((o): [string, string] => [customerKey(o.customer_name), o.customer_name.trim()])).entries()
+    new Map(
+      deliveredOrders.map((o): [string, string] => [customerKey(o.customer_name), o.customer_name.trim()])
+    ).entries()
   ).sort((a, b) => a[1].localeCompare(b[1], "fr"));
 
   const filtersActive = activeFilters.size > 0 || customerFilter.size > 0;
 
   // Tri par date de la commande (la plus récente d'abord par défaut).
-  const visibleOrders = orders
+  const visibleOrders = deliveredOrders
     .filter(matchesFilters)
     .sort((a, b) => {
       const diff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -269,10 +272,11 @@ export default function AdminVentesPage() {
   // cache une commande cochée ne doit jamais la laisser modifier par surprise.
   const selectedVisible = visibleOrders.filter((o) => selectedIds.has(o.id));
 
-  type BulkAction = "livree" | "a_livrer" | "recuperee" | "a_recuperer";
+  type BulkAction = "a_livrer" | "recuperee" | "a_recuperer";
 
   const BULK_ACTIONS: { key: BulkAction; label: string }[] = [
-    { key: "livree", label: "Marquer livrées" },
+    // Les commandes de la liste sont toutes livrées : "Remettre à livrer" les
+    // renvoie dans la zone « À honorer ».
     { key: "a_livrer", label: "Remettre à livrer" },
     { key: "recuperee", label: "Bouteilles récupérées" },
     { key: "a_recuperer", label: "Bouteilles à récupérer" },
@@ -282,9 +286,8 @@ export default function AdminVentesPage() {
   // bouteille n'a de sens qu'après livraison : les commandes pas encore
   // livrées sont ignorées pour les actions "bouteille".
   async function handleBulk(action: BulkAction) {
-    const isDeliveryAction = action === "livree" || action === "a_livrer";
+    const isDeliveryAction = action === "a_livrer";
     const targets = selectedVisible.filter((o) => {
-      if (action === "livree") return o.delivery_status !== "livree";
       if (action === "a_livrer") return o.delivery_status !== "a_livrer";
       return o.delivery_status === "livree" && o.pickup_status !== action;
     });
@@ -442,7 +445,7 @@ export default function AdminVentesPage() {
         onHonored={loadAll}
       />
 
-      {orders.length > 0 && (
+      {deliveredOrders.length > 0 && (
         <div className="space-y-3 rounded-xl border border-border bg-white/60 p-3 text-xs">
           <div className="flex flex-wrap items-center gap-2">
             <select
@@ -568,8 +571,8 @@ export default function AdminVentesPage() {
 
       {loading ? (
         <p className="text-sm text-muted">Chargement...</p>
-      ) : orders.length === 0 ? (
-        <p className="text-sm text-muted">Aucune commande enregistrée pour le moment.</p>
+      ) : deliveredOrders.length === 0 ? (
+        <p className="text-sm text-muted">Aucune commande livrée pour le moment.</p>
       ) : visibleOrders.length === 0 ? (
         <p className="text-sm text-muted">Aucune commande ne correspond à ces filtres.</p>
       ) : (

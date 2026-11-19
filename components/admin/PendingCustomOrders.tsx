@@ -17,6 +17,7 @@ const ORIGIN_LABELS: Record<Order["created_by"], string> = {
 };
 
 type DeliveryView = "liste" | "gout" | "client";
+const VIEW_STORAGE_KEY = "ventes-a-honorer-vue";
 
 const VIEW_OPTIONS: { key: DeliveryView; label: string }[] = [
   { key: "liste", label: "Liste" },
@@ -72,7 +73,25 @@ export function PendingCustomOrders({
   const [settings, setSettings] = useState<Record<string, RowSettings>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [view, setView] = useState<DeliveryView>("liste");
+  // Dernière vue choisie, retenue d'une ouverture à l'autre sur cet appareil
+  // (par goût par défaut : combien de bouteilles de chaque goût à préparer).
+  const [view, setView] = useState<DeliveryView>(() => {
+    try {
+      const saved = typeof window !== "undefined" ? window.localStorage.getItem(VIEW_STORAGE_KEY) : null;
+      return VIEW_OPTIONS.some((o) => o.key === saved) ? (saved as DeliveryView) : "gout";
+    } catch {
+      return "gout";
+    }
+  });
+
+  function changeView(next: DeliveryView) {
+    setView(next);
+    try {
+      window.localStorage.setItem(VIEW_STORAGE_KEY, next);
+    } catch {
+      // Stockage indisponible (navigation privée…) : le choix ne sera juste pas retenu.
+    }
+  }
 
   async function loadRequests() {
     const res = await fetch("/api/admin/commandes");
@@ -105,8 +124,8 @@ export function PendingCustomOrders({
     const s = getSettings(request);
     const recipe = recipes.find((r) => r.id === s.recipeId);
     const confirmation = fromStock
-      ? `Honorer la demande de ${request.customer_name} en prenant ${request.quantity} bouteille(s) dans le stock de "${recipe?.name}" ?`
-      : `Honorer la demande de ${request.customer_name} en production dédiée (le stock ne sera pas modifié) ?`;
+      ? `Honorer la demande de ${request.customer_name} en prenant ${request.quantity} bouteille(s) dans le stock de "${recipe?.name}" ? La commande sera marquée comme livrée.`
+      : `Honorer la demande de ${request.customer_name} en production dédiée (le stock ne sera pas modifié) ? La commande sera marquée comme livrée.`;
     if (!window.confirm(confirmation)) return;
 
     setBusyId(request.id);
@@ -328,7 +347,7 @@ export function PendingCustomOrders({
             <button
               key={o.key}
               type="button"
-              onClick={() => setView(o.key)}
+              onClick={() => changeView(o.key)}
               aria-pressed={view === o.key}
               className={`rounded-full px-2.5 py-1 ${view === o.key ? "bg-accent text-accent-foreground" : ""}`}
             >
