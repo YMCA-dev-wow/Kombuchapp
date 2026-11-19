@@ -22,6 +22,8 @@ export type Order = {
   created_by: "site" | "admin" | "sur_commande";
   delivery_status: "a_livrer" | "livree";
   pickup_status: "a_recuperer" | "recuperee";
+  // Bouteilles en seconde fermentation (repère du producteur, zone « À honorer »).
+  in_f2: boolean;
   created_at: string;
 };
 
@@ -48,6 +50,8 @@ export type CustomOrder = {
   admin_note: string;
   order_id: string | null;
   honored_at: string | null;
+  // Bouteilles en seconde fermentation (repère du producteur, zone « À honorer »).
+  in_f2: boolean;
   created_at: string;
 };
 

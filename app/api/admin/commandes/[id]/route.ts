@@ -23,11 +23,27 @@ export async function PATCH(
     quantity?: number;
     desiredDate?: string | null;
     details?: string;
+    inF2?: boolean;
   };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
+  }
+
+  // Repère « F2 » (bouteilles en seconde fermentation) : simple indicateur
+  // du producteur, sans effet sur le statut de la demande.
+  if (typeof body.inF2 === "boolean" && body.status === undefined && body.recipeName === undefined) {
+    const { data, error } = await supabaseAdmin
+      .from("custom_orders")
+      .update({ in_f2: body.inF2 })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ customOrder: data });
   }
 
   if (body.status === undefined) {

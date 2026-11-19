@@ -28,8 +28,18 @@ const VIEW_OPTIONS: { key: DeliveryView; label: string }[] = [
 // Une entrée par demande à honorer (demande « sur commande » validée) ou par
 // commande à livrer, pour pouvoir les regrouper ensemble.
 type Item =
-  | { kind: "demande"; id: string; recipe: string; customer: string; quantity: number; request: CustomOrder }
-  | { kind: "livraison"; id: string; recipe: string; customer: string; quantity: number; order: Order };
+  | { kind: "demande"; id: string; recipe: string; customer: string; quantity: number; inF2: boolean; request: CustomOrder }
+  | { kind: "livraison"; id: string; recipe: string; customer: string; quantity: number; inF2: boolean; order: Order };
+
+// Bouteilles en F2 (seconde fermentation) : une couleur dédiée repère les
+// lignes déjà lancées en production.
+const F2_BADGE = "rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-900";
+function cardClass(inF2: boolean): string {
+  return `space-y-2 rounded-lg border p-3 ${inF2 ? "border-amber-300 bg-amber-100" : "border-border bg-white/70"}`;
+}
+function rowClass(inF2: boolean): string {
+  return `flex w-full justify-between gap-2 rounded px-1.5 py-0.5 text-left ${inF2 ? "bg-amber-100 text-amber-900" : ""}`;
+}
 
 const KIND_LABELS: Record<Item["kind"], string> = { demande: "à honorer", livraison: "à livrer" };
 
@@ -47,6 +57,11 @@ function groupItems(items: Item[], labelOf: (i: Item) => string): Group[] {
     map.set(key, group);
   }
   return Array.from(map.values());
+}
+
+// Nombre de bouteilles d'un groupe déjà en F2.
+function f2Bottles(group: Group): number {
+  return group.items.filter((i) => i.inF2).reduce((sum, i) => sum + i.quantity, 0);
 }
 
 function bottlesLabel(n: number): string {
@@ -73,6 +88,32 @@ export function PendingCustomOrders({
   const [settings, setSettings] = useState<Record<string, RowSettings>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Changements de repère F2 faits ici (affichage immédiat, sans recharger la
+  // page) ; clé = "demande:<id>" ou "livraison:<id>".
+  const [f2Overrides, setF2Overrides] = useState<Record<string, boolean>>({});
+
+  function f2Of(kind: Item["kind"], id: string, saved: boolean): boolean {
+    return f2Overrides[`${kind}:${id}`] ?? saved;
+  }
+
+  // Un clic sur une ligne la fait basculer de « F2 » à « pas en F2 ».
+  async function toggleF2(kind: Item["kind"], id: string, current: boolean) {
+    const key = `${kind}:${id}`;
+    const next = !current;
+    setF2Overrides((prev) => ({ ...prev, [key]: next }));
+    const url = kind === "demande" ? `/api/admin/commandes/${id}` : `/api/admin/orders/${id}`;
+    const res = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inF2: next }),
+    }).catch(() => null);
+    if (!res || !res.ok) {
+      // Échec : on revient à l'état précédent et on prévient.
+      setF2Overrides((prev) => ({ ...prev, [key]: !next }));
+      window.alert("Le repère F2 n'a pas pu être enregistré.");
+    }
+  }
+
   // Dernière vue choisie, retenue d'une ouverture à l'autre sur cet appareil
   // (par goût par défaut : combien de bouteilles de chaque goût à préparer).
   const [view, setView] = useState<DeliveryView>(() => {
@@ -199,6 +240,7 @@ export function PendingCustomOrders({
         recipe: request.recipe_name.trim(),
         customer: request.customer_name.trim(),
         quantity: request.quantity,
+        inF2: f2Of("demande", request.id, request.in_f2),
         request,
       })
     ),
@@ -209,6 +251,7 @@ export function PendingCustomOrders({
         recipe: order.recipe_name_snapshot.trim(),
         customer: order.customer_name.trim(),
         quantity: order.quantity,
+        inF2: f2Of("livraison", order.id, order.in_f2),
         order,
       })
     ),
@@ -222,12 +265,28 @@ export function PendingCustomOrders({
     const s = getSettings(request);
     const recipe = recipes.find((r) => r.id === s.recipeId);
     const enoughStock = recipe ? recipe.quantity >= request.quantity : false;
+    const inF2 = f2Of("demande", request.id, request.in_f2);
 
     return (
-      <div key={request.id} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
-        <div>
-          <p className="font-medium">
-            {request.recipe_name} × {request.quantity}
+      <div key={request.id} className={cardClass(inF2)}>
+        <div
+          role="button"
+          tabIndex={0}
+          title="Touche pour marquer / démarquer « F2 »"
+          onClick={() => toggleF2("demande", request.id, inF2)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              toggleF2("demande", request.id, inF2);
+            }
+          }}
+          className="cursor-pointer"
+        >
+          <p className="flex items-center gap-2 font-medium">
+            <span>
+              {request.recipe_name} × {request.quantity}
+            </span>
+            {inF2 && <span className={F2_BADGE}>F2</span>}
           </p>
           <p className="text-xs text-muted">
             {request.customer_name}
@@ -305,11 +364,27 @@ export function PendingCustomOrders({
   }
 
   function renderDeliveryCard(order: Order) {
+    const inF2 = f2Of("livraison", order.id, order.in_f2);
     return (
-      <div key={order.id} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
-        <div>
-          <p className="font-medium">
-            {order.recipe_name_snapshot} × {order.quantity}
+      <div key={order.id} className={cardClass(inF2)}>
+        <div
+          role="button"
+          tabIndex={0}
+          title="Touche pour marquer / démarquer « F2 »"
+          onClick={() => toggleF2("livraison", order.id, inF2)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              toggleF2("livraison", order.id, inF2);
+            }
+          }}
+          className="cursor-pointer"
+        >
+          <p className="flex items-center gap-2 font-medium">
+            <span>
+              {order.recipe_name_snapshot} × {order.quantity}
+            </span>
+            {inF2 && <span className={F2_BADGE}>F2</span>}
           </p>
           <p className="text-xs text-muted">
             {order.customer_name} · {ORIGIN_LABELS[order.created_by]} ·{" "}
@@ -377,15 +452,26 @@ export function PendingCustomOrders({
           <div key={group.key} className="space-y-1.5 rounded-lg border border-border bg-white/70 p-3">
             <p className="flex items-baseline justify-between gap-2 font-medium">
               <span className="min-w-0 truncate">{group.label}</span>
-              <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
+              <span className="shrink-0">
+                {bottlesLabel(group.bottles)}
+                {f2Bottles(group) > 0 && <span className="font-normal text-amber-800"> · {f2Bottles(group)} en F2</span>}
+              </span>
             </p>
             <ul className="space-y-0.5 text-xs text-muted">
               {group.items.map((item) => (
-                <li key={item.id} className="flex justify-between gap-2">
-                  <span className="min-w-0 truncate">
-                    {item.customer} <span className="text-[11px]">· {KIND_LABELS[item.kind]}</span>
-                  </span>
-                  <span className="shrink-0">× {item.quantity}</span>
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    title="Touche pour marquer / démarquer « F2 »"
+                    onClick={() => toggleF2(item.kind, item.id, item.inF2)}
+                    className={rowClass(item.inF2)}
+                  >
+                    <span className="min-w-0 truncate">
+                      {item.customer} <span className="text-[11px]">· {KIND_LABELS[item.kind]}</span>
+                      {item.inF2 && <span className={`ml-1.5 ${F2_BADGE}`}>F2</span>}
+                    </span>
+                    <span className="shrink-0">× {item.quantity}</span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -403,15 +489,26 @@ export function PendingCustomOrders({
             <div key={group.key} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
               <p className="flex items-baseline justify-between gap-2 font-medium">
                 <span className="min-w-0 truncate">{group.label}</span>
-                <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
+                <span className="shrink-0">
+                {bottlesLabel(group.bottles)}
+                {f2Bottles(group) > 0 && <span className="font-normal text-amber-800"> · {f2Bottles(group)} en F2</span>}
+              </span>
               </p>
               <ul className="space-y-0.5 text-xs text-muted">
                 {group.items.map((item) => (
-                  <li key={item.id} className="flex justify-between gap-2">
-                    <span className="min-w-0 truncate">
-                      {item.recipe} <span className="text-[11px]">· {KIND_LABELS[item.kind]}</span>
-                    </span>
-                    <span className="shrink-0">× {item.quantity}</span>
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      title="Touche pour marquer / démarquer « F2 »"
+                      onClick={() => toggleF2(item.kind, item.id, item.inF2)}
+                      className={rowClass(item.inF2)}
+                    >
+                      <span className="min-w-0 truncate">
+                        {item.recipe} <span className="text-[11px]">· {KIND_LABELS[item.kind]}</span>
+                        {item.inF2 && <span className={`ml-1.5 ${F2_BADGE}`}>F2</span>}
+                      </span>
+                      <span className="shrink-0">× {item.quantity}</span>
+                    </button>
                   </li>
                 ))}
               </ul>
