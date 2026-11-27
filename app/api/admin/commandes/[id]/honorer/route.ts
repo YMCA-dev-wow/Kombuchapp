@@ -62,9 +62,15 @@ export async function POST(
   // rejoint la liste des ventes livrées). Si cette mise à jour échoue, la
   // vente reste "à livrer" et visible dans la zone « À honorer » : on log
   // l'erreur sans bloquer.
+  // La date souhaitée de la demande devient la date de livraison de la vente.
+  const { data: requestRow } = await supabaseAdmin
+    .from("custom_orders")
+    .select("desired_date")
+    .eq("id", id)
+    .single();
   const { data: delivered, error: deliveredError } = await supabaseAdmin
     .from("orders")
-    .update({ delivery_status: "livree" })
+    .update({ delivery_status: "livree", delivery_date: requestRow?.desired_date ?? null })
     .eq("id", order.id)
     .select()
     .single();

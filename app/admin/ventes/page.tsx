@@ -84,6 +84,7 @@ export default function AdminVentesPage() {
   const [formRecipeName, setFormRecipeName] = useState("");
   const [formQuantity, setFormQuantity] = useState(1);
   const [formCustomerName, setFormCustomerName] = useState("");
+  const [formDeliveryDate, setFormDeliveryDate] = useState("");
   const [formDate, setFormDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [formType, setFormType] = useState<"vendu" | "donne">("vendu");
   const [formAmount, setFormAmount] = useState<number | "">("");
@@ -194,6 +195,7 @@ export default function AdminVentesPage() {
         quantity: formQuantity,
         customerName: formCustomerName,
         createdAt: formDate,
+        deliveryDate: formDeliveryDate || null,
         orderType: formType,
         unitAmount: formType === "vendu" && formAmount !== "" ? Number(formAmount) : null,
       }),
@@ -208,6 +210,7 @@ export default function AdminVentesPage() {
     setFormRecipeName("");
     setFormQuantity(1);
     setFormCustomerName("");
+    setFormDeliveryDate("");
     setFormDate(new Date().toISOString().slice(0, 10));
     setFormType("vendu");
     setFormAmount("");
@@ -417,6 +420,16 @@ export default function AdminVentesPage() {
                 className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">Date de livraison prévue (optionnel)</label>
+            <input
+              type="date"
+              value={formDeliveryDate}
+              onChange={(e) => setFormDeliveryDate(e.target.value)}
+              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            />
           </div>
 
           <div>

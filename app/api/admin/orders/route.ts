@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
     createdAt?: string;
     orderType?: "vendu" | "donne";
     unitAmount?: number | null;
+    deliveryDate?: string | null;
   };
 
   try {
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
-  const { recipeId, recipeName, quantity, customerName, createdAt, orderType, unitAmount } = body;
+  const { recipeId, recipeName, quantity, customerName, createdAt, orderType, unitAmount, deliveryDate } = body;
 
   if (!recipeName?.trim() || !quantity || quantity <= 0 || !customerName?.trim()) {
     return NextResponse.json(
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
       order_type: orderType === "donne" ? "donne" : "vendu",
       unit_amount: orderType === "donne" ? null : unitAmount ?? null,
       created_by: "admin",
+      delivery_date: deliveryDate && /^\d{4}-\d{2}-\d{2}$/.test(deliveryDate) ? deliveryDate : null,
     })
     .select()
     .single();

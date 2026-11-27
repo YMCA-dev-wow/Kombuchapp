@@ -24,6 +24,8 @@ export type Order = {
   pickup_status: "a_recuperer" | "recuperee";
   // Bouteilles en seconde fermentation (repère du producteur, zone « À honorer »).
   in_f2: boolean;
+  // Date de livraison prévue (AAAA-MM-JJ), optionnelle.
+  delivery_date: string | null;
   created_at: string;
 };
 

@@ -16,6 +16,7 @@ export async function PATCH(
     deliveryStatus: "a_livrer" | "livree";
     pickupStatus: "a_recuperer" | "recuperee";
     inF2: boolean;
+    deliveryDate: string | null;
   }>;
 
   try {
@@ -37,6 +38,12 @@ export async function PATCH(
   if (body.deliveryStatus !== undefined) update.delivery_status = body.deliveryStatus;
   if (body.pickupStatus !== undefined) update.pickup_status = body.pickupStatus;
   if (typeof body.inF2 === "boolean") update.in_f2 = body.inF2;
+  if (body.deliveryDate !== undefined) {
+    if (body.deliveryDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(body.deliveryDate)) {
+      return NextResponse.json({ error: "Date de livraison invalide." }, { status: 400 });
+    }
+    update.delivery_date = body.deliveryDate;
+  }
   // Une bouteille pas encore livrée ne peut pas être "récupérée" : en
   // repassant une commande "à livrer", on remet le statut bouteille à zéro.
   if (body.deliveryStatus === "a_livrer") update.pickup_status = "a_recuperer";
