@@ -205,6 +205,13 @@ export default function AdminVentesPage() {
       setError(data.error ?? "Erreur lors de la création.");
       return;
     }
+    // Garde-fou : la date de livraison saisie doit se retrouver dans la commande
+    // créée ; sinon on le dit clairement plutôt que de la perdre en silence.
+    if (formDeliveryDate && data.order?.delivery_date !== formDeliveryDate) {
+      window.alert(
+        "La commande a été créée, mais sa date de livraison n'a pas été enregistrée. Renseigne-la avec « Modifier » dans la zone « À honorer »."
+      );
+    }
 
     setFormRecipeId("");
     setFormRecipeName("");
@@ -412,7 +419,7 @@ export default function AdminVentesPage() {
               />
             </div>
             <div className="flex-1">
-              <label className="mb-1 block text-sm font-medium">Date</label>
+              <label className="mb-1 block text-sm font-medium">Date de commande</label>
               <input
                 type="date"
                 value={formDate}

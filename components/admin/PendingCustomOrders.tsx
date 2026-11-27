@@ -18,14 +18,15 @@ const ORIGIN_LABELS: Record<Order["created_by"], string> = {
   sur_commande: "Sur commande",
 };
 
-type DeliveryView = "liste" | "gout" | "client" | "semaine";
+type DeliveryView = "liste" | "gout" | "client";
 const VIEW_STORAGE_KEY = "ventes-a-honorer-vue";
+// Option « Grouper par semaine » (se combine avec chaque vue).
+const WEEK_STORAGE_KEY = "ventes-a-honorer-semaines";
 
 const VIEW_OPTIONS: { key: DeliveryView; label: string }[] = [
   { key: "liste", label: "Liste" },
   { key: "gout", label: "Par goût" },
   { key: "client", label: "Par client" },
-  { key: "semaine", label: "Par semaine" },
 ];
 
 // Tri des lignes : par date de livraison (les lignes sans date à la fin) ou
@@ -252,6 +253,24 @@ export function PendingCustomOrders({
     }
   }
 
+  // Option « Grouper par semaine », retenue d'une ouverture à l'autre sur cet appareil.
+  const [groupByWeek, setGroupByWeek] = useState<boolean>(() => {
+    try {
+      return typeof window !== "undefined" && window.localStorage.getItem(WEEK_STORAGE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  function changeGroupByWeek(next: boolean) {
+    setGroupByWeek(next);
+    try {
+      window.localStorage.setItem(WEEK_STORAGE_KEY, next ? "1" : "0");
+    } catch {
+      // Stockage indisponible : le choix ne sera juste pas retenu.
+    }
+  }
+
   // Dernière vue choisie, retenue d'une ouverture à l'autre sur cet appareil
   // (par goût par défaut : combien de bouteilles de chaque goût à préparer).
   const [view, setView] = useState<DeliveryView>(() => {
@@ -353,10 +372,10 @@ export function PendingCustomOrders({
     setBusyId(null);
   }
 
-  function handleDeliverGroup(name: string, targets: Order[]) {
+  function handleDeliverGroup(name: string, targets: Order[], busyKey: string) {
     const bottles = targets.reduce((sum, o) => sum + o.quantity, 0);
     if (!window.confirm(`Marquer comme livrées les ${targets.length} commande(s) (${bottles} bouteille(s)) de ${name} ?`)) return;
-    markDelivered(targets, `group:${name}`);
+    markDelivered(targets, busyKey);
   }
 
   if (requests.length === 0 && toDeliver.length === 0) return null;
@@ -404,16 +423,10 @@ export function PendingCustomOrders({
     }
     return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
   });
-  const sortedRequests = items.flatMap((i) => (i.kind === "demande" ? [i.request] : []));
-  const deliveries = items.flatMap((i) => (i.kind === "livraison" ? [i.order] : []));
-
   // Bouteilles déjà en F2, affichées en haut de la zone à côté du total.
   const f2Total = items.filter((i) => i.inF2).reduce((sum, i) => sum + i.quantity, 0);
-  const byRecipe = groupItems(items, (i) => i.recipe).sort(
-    (a, b) => b.bottles - a.bottles || a.label.localeCompare(b.label, "fr")
-  );
-  const byCustomer = groupItems(items, (i) => i.customer).sort((a, b) => a.label.localeCompare(b.label, "fr"));
-  // Par semaine : clé = lundi de la semaine de livraison ("" = sans date, à la fin).
+  // Option « Grouper par semaine » : clé = lundi de la semaine de livraison
+  // ("" = sans date de livraison, à la fin).
   const byWeek = groupItems(items, (i) => (i.deliveryDate ? weekStart(i.deliveryDate) : "")).sort((a, b) =>
     a.key === "" ? 1 : b.key === "" ? -1 : a.key < b.key ? -1 : 1
   );
@@ -709,6 +722,96 @@ export function PendingCustomOrders({
     );
   }
 
+  // Contenu de la vue choisie (Liste, Par goût ou Par client) pour un ensemble
+  // de lignes : toutes les lignes, ou seulement celles d'une semaine quand
+  // « Grouper par semaine » est coché. `scope` garde les clés des boutons
+  // uniques d'une semaine à l'autre.
+  function renderView(subset: Item[], scope: string) {
+    const subRequests = subset.flatMap((i) => (i.kind === "demande" ? [i.request] : []));
+    const subDeliveries = subset.flatMap((i) => (i.kind === "livraison" ? [i.order] : []));
+
+    // Liste : d'abord les demandes à honorer, puis les commandes à livrer.
+    if (view === "liste") {
+      return (
+        <div className="space-y-3">
+          {subRequests.length > 0 && <p className="text-xs font-medium">Demandes à honorer ({subRequests.length})</p>}
+          {subRequests.map(renderRequestCard)}
+          {subDeliveries.length > 0 && (
+            <p className="text-xs font-medium">
+              Commandes à livrer ({subDeliveries.length} ·{" "}
+              {bottlesLabel(subDeliveries.reduce((s, o) => s + o.quantity, 0))})
+            </p>
+          )}
+          {subDeliveries.map(renderDeliveryCard)}
+        </div>
+      );
+    }
+
+    // Par goût : combien de bouteilles de chaque goût sont attendues, et pour qui.
+    if (view === "gout") {
+      const groups = groupItems(subset, (i) => i.recipe).sort(
+        (a, b) => b.bottles - a.bottles || a.label.localeCompare(b.label, "fr")
+      );
+      return (
+        <div className="space-y-3">
+          {groups.map((group) => (
+            <div key={`${scope}:${group.key}`} className="space-y-1.5 rounded-lg border border-border bg-white/70 p-3">
+              <p className="flex items-baseline justify-between gap-2 font-medium">
+                <span className="min-w-0 truncate">{group.label}</span>
+                <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
+              </p>
+              <ul className="space-y-0.5 text-xs text-muted">
+                {group.items.map((item) => renderRow(item, item.customer))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // Par client : tout ce qu'un client attend. Les demandes restent honorables
+    // depuis cette vue, et ses livraisons se valident d'un seul bouton.
+    const groups = groupItems(subset, (i) => i.customer).sort((a, b) => a.label.localeCompare(b.label, "fr"));
+    return (
+      <div className="space-y-3">
+        {groups.map((group) => {
+          const busyKey = `group:${scope}:${group.label}`;
+          const groupDeliveries = group.items.flatMap((i) => (i.kind === "livraison" ? [i.order] : []));
+          const groupRequests = group.items.flatMap((i) => (i.kind === "demande" ? [i.request] : []));
+          return (
+            <div key={`${scope}:${group.key}`} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
+              <p className="flex items-baseline justify-between gap-2 font-medium">
+                <span className="min-w-0 truncate">{group.label}</span>
+                <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
+              </p>
+              <ul className="space-y-0.5 text-xs text-muted">
+                {group.items.map((item) => renderRow(item, item.recipe))}
+              </ul>
+              {groupDeliveries.length > 0 && (
+                <>
+                  {errors[busyKey] && <p className="text-xs text-danger">{errors[busyKey]}</p>}
+                  <button
+                    onClick={() => handleDeliverGroup(group.label, groupDeliveries, busyKey)}
+                    disabled={busyId === busyKey}
+                    className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
+                  >
+                    Tout marquer comme livré ({groupDeliveries.length})
+                  </button>
+                </>
+              )}
+              {groupRequests.length > 0 && (
+                <div className="space-y-2 border-t border-border pt-2">
+                  <p className="text-xs font-medium">À honorer</p>
+                  {groupRequests.map(renderRequestCard)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3 rounded-xl border border-accent/40 bg-accent/5 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -744,74 +847,19 @@ export function PendingCustomOrders({
               </button>
             ))}
           </div>
+          <label className="flex items-center gap-1.5 text-xs">
+            <input
+              type="checkbox"
+              checked={groupByWeek}
+              onChange={(e) => changeGroupByWeek(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Grouper par semaine
+          </label>
         </div>
       </div>
 
-      {/* Liste : d'abord les demandes à honorer, puis les commandes à livrer. */}
-      {view === "liste" && (
-        <>
-          {sortedRequests.length > 0 && <p className="text-xs font-medium">Demandes à honorer ({sortedRequests.length})</p>}
-          {sortedRequests.map(renderRequestCard)}
-          {deliveries.length > 0 && (
-            <p className="text-xs font-medium">
-              Commandes à livrer ({deliveries.length} · {bottlesLabel(deliveries.reduce((s, o) => s + o.quantity, 0))})
-            </p>
-          )}
-          {deliveries.map(renderDeliveryCard)}
-        </>
-      )}
-
-      {/* Par goût : combien de bouteilles de chaque goût sont attendues, et pour qui. */}
-      {view === "gout" &&
-        byRecipe.map((group) => (
-          <div key={group.key} className="space-y-1.5 rounded-lg border border-border bg-white/70 p-3">
-            <p className="flex items-baseline justify-between gap-2 font-medium">
-              <span className="min-w-0 truncate">{group.label}</span>
-              <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
-            </p>
-            <ul className="space-y-0.5 text-xs text-muted">{group.items.map((item) => renderRow(item, item.customer))}</ul>
-          </div>
-        ))}
-
-      {/* Par client : tout ce qu'un client attend. Les demandes restent honorables
-          depuis cette vue, et ses livraisons se valident d'un seul bouton. */}
-      {view === "client" &&
-        byCustomer.map((group) => {
-          const busyKey = `group:${group.label}`;
-          const groupDeliveries = group.items.flatMap((i) => (i.kind === "livraison" ? [i.order] : []));
-          const groupRequests = group.items.flatMap((i) => (i.kind === "demande" ? [i.request] : []));
-          return (
-            <div key={group.key} className="space-y-2 rounded-lg border border-border bg-white/70 p-3">
-              <p className="flex items-baseline justify-between gap-2 font-medium">
-                <span className="min-w-0 truncate">{group.label}</span>
-                <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
-              </p>
-              <ul className="space-y-0.5 text-xs text-muted">{group.items.map((item) => renderRow(item, item.recipe))}</ul>
-              {groupDeliveries.length > 0 && (
-                <>
-                  {errors[busyKey] && <p className="text-xs text-danger">{errors[busyKey]}</p>}
-                  <button
-                    onClick={() => handleDeliverGroup(group.label, groupDeliveries)}
-                    disabled={busyId === busyKey}
-                    className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground disabled:opacity-50"
-                  >
-                    Tout marquer comme livré ({groupDeliveries.length})
-                  </button>
-                </>
-              )}
-              {groupRequests.length > 0 && (
-                <div className="space-y-2 border-t border-border pt-2">
-                  <p className="text-xs font-medium">À honorer</p>
-                  {groupRequests.map(renderRequestCard)}
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-      {/* Par semaine : les lignes sont regroupées par semaine de livraison, avec
-          toutes leurs actions (honorer, livrer, modifier). */}
-      {view === "semaine" &&
+      {groupByWeek ? (
         byWeek.map((group) => (
           <div key={group.key || "sans-date"} className="space-y-2 rounded-lg border border-border bg-white/50 p-3">
             <p className="flex items-baseline justify-between gap-2 font-medium">
@@ -830,9 +878,12 @@ export function PendingCustomOrders({
               </span>
               <span className="shrink-0">{bottlesLabel(group.bottles)}</span>
             </p>
-            {group.items.map((i) => (i.kind === "demande" ? renderRequestCard(i.request) : renderDeliveryCard(i.order)))}
+            {renderView(group.items, group.key || "sans-date")}
           </div>
-        ))}
+        ))
+      ) : (
+        renderView(items, "tout")
+      )}
     </div>
   );
 }
