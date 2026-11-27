@@ -79,7 +79,8 @@ function cardClass(inF2: boolean): string {
   return `space-y-2 rounded-lg border p-3 ${inF2 ? "border-amber-300 bg-amber-100" : "border-border bg-white/70"}`;
 }
 function rowClass(inF2: boolean): string {
-  return `flex w-full justify-between gap-2 rounded px-1.5 py-0.5 text-left ${inF2 ? "bg-amber-100 text-amber-900" : ""}`;
+  // min-w-0 + flex-1 : la ligne rétrécit pour laisser sa place au crayon ✎ au lieu de le faire déborder.
+  return `flex min-w-0 flex-1 items-start justify-between gap-2 rounded px-1.5 py-0.5 text-left ${inF2 ? "bg-amber-100 text-amber-900" : ""}`;
 }
 
 const KIND_LABELS: Record<Item["kind"], string> = { demande: "à honorer", livraison: "à livrer" };
@@ -514,7 +515,7 @@ export function PendingCustomOrders({
             onClick={() => toggleF2(item.kind, item.id, item.inF2)}
             className={rowClass(item.inF2)}
           >
-            <span className="min-w-0 truncate">
+            <span className="min-w-0 break-words">
               {primary}{" "}
               <span className="text-[11px]">
                 · {KIND_LABELS[item.kind]}
